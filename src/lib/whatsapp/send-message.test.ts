@@ -45,7 +45,7 @@ describe('sendMessageToConversation — param validation (pre-DB)', () => {
     await expectSendError(
       { ...base, messageType: 'carrier-pigeon' },
       400,
-      /Unsupported message_type/
+      /Tipo de mensagem não compatível/
     );
   });
 
@@ -53,7 +53,7 @@ describe('sendMessageToConversation — param validation (pre-DB)', () => {
     await expectSendError(
       { ...base, messageType: 'text' },
       400,
-      /content_text is required/
+      /conteúdo de texto é obrigatório/
     );
   });
 
@@ -61,7 +61,7 @@ describe('sendMessageToConversation — param validation (pre-DB)', () => {
     await expectSendError(
       { ...base, messageType: 'template' },
       400,
-      /template_name is required/
+      /nome do modelo é obrigatório/
     );
   });
 
@@ -70,7 +70,7 @@ describe('sendMessageToConversation — param validation (pre-DB)', () => {
       await expectSendError(
         { ...base, messageType: kind },
         400,
-        /media_url is required/
+        /URL da mídia é obrigatória/
       );
     }
   });
@@ -84,7 +84,7 @@ describe('sendMessageToConversation — param validation (pre-DB)', () => {
         contentText: 'a'.repeat(1025),
       },
       400,
-      /1024-character limit/
+      /limite de 1024 caracteres/
     );
   });
 
@@ -93,7 +93,7 @@ describe('sendMessageToConversation — param validation (pre-DB)', () => {
     await expectSendError(
       { ...base, messageType: 'interactive' },
       400,
-      /payload is required/
+      /conteúdo da mensagem interativa é obrigatório/
     );
     // Too many buttons.
     await expectSendError(
@@ -112,7 +112,7 @@ describe('sendMessageToConversation — param validation (pre-DB)', () => {
         },
       },
       400,
-      /at most 3 buttons/
+      /no máximo 3 botões/
     );
     // Over-long button title.
     await expectSendError(
@@ -126,7 +126,7 @@ describe('sendMessageToConversation — param validation (pre-DB)', () => {
         },
       },
       400,
-      /20-character limit/
+      /limite de 20 caracteres/
     );
   });
 
@@ -427,7 +427,7 @@ describe('sendMessageToConversation — BSUID recipients (#519)', () => {
         'acct-1',
         { conversationId: 'cv-1', messageType: 'text', contentText: 'hi' }
       )
-    ).rejects.toThrow(/no phone number or WhatsApp user ID/);
+    ).rejects.toThrow(/não tem telefone nem ID de usuário do WhatsApp/);
   });
 
   it('ignores a wa_user_id that is not BSUID-shaped', async () => {
@@ -442,6 +442,6 @@ describe('sendMessageToConversation — BSUID recipients (#519)', () => {
         'acct-1',
         { conversationId: 'cv-1', messageType: 'text', contentText: 'hi' }
       )
-    ).rejects.toThrow(/no phone number or WhatsApp user ID/);
+    ).rejects.toThrow(/não tem telefone nem ID de usuário do WhatsApp/);
   });
 });

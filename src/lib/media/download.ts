@@ -18,7 +18,7 @@ import { mediaFilename } from "./filename";
  */
 export async function downloadMediaMessage(message: Message): Promise<void> {
   const url = message.media_url;
-  if (!url) throw new Error("This message has no attachment.");
+  if (!url) throw new Error("Esta mensagem não tem anexo.");
 
   let blob: Blob;
   try {

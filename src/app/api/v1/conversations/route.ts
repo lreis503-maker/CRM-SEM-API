@@ -47,7 +47,7 @@ export async function GET(request: Request) {
     const { data, error } = await query;
     if (error) {
       console.error('[api/v1/conversations] list error:', error);
-      return fail('internal', 'Failed to list conversations', 500);
+      return fail('internal', "Não foi possível listar as conversas", 500);
     }
 
     const { items, nextCursor } = buildPage(

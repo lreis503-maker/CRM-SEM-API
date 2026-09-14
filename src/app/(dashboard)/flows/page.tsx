@@ -102,7 +102,7 @@ export default function FlowsPage() {
           fetch("/api/flows/templates"),
         ]);
         if (!flowsRes.ok) {
-          throw new Error(`Failed to load flows: ${flowsRes.status}`);
+          throw new Error(`Não foi possível carregar os fluxos: ${flowsRes.status}`);
         }
         const flowsJson = (await flowsRes.json()) as { flows: FlowRow[] };
         if (!cancelled) setFlows(flowsJson.flows ?? []);
@@ -141,7 +141,7 @@ export default function FlowsPage() {
           trigger_config: { keywords: [] },
         }),
       });
-      if (!res.ok) throw new Error(`Create failed: ${res.status}`);
+      if (!res.ok) throw new Error(`Falha ao criar: ${res.status}`);
       const json = (await res.json()) as { flow: FlowRow };
       setCreateOpen(false);
       setNewName("");
@@ -164,7 +164,7 @@ export default function FlowsPage() {
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        throw new Error(json.error ?? `Clone failed: ${res.status}`);
+        throw new Error(json.error ?? `Falha ao copiar: ${res.status}`);
       }
       const json = (await res.json()) as { flow: FlowRow };
       setCreateOpen(false);
@@ -182,7 +182,7 @@ export default function FlowsPage() {
     if (!yes) return;
     try {
       const res = await fetch(`/api/flows/${flow.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
+      if (!res.ok) throw new Error(`Falha ao excluir: ${res.status}`);
       setFlows((prev) => prev.filter((f) => f.id !== flow.id));
       toast.success(t("deleteSuccess"));
     } catch (err) {
@@ -215,7 +215,7 @@ export default function FlowsPage() {
         </div>
         <GatedButton
           canAct={canCreate}
-          gateReason="create flows"
+          gateReason="criar fluxos"
           onClick={() => setCreateOpen(true)}
         >
           <Plus className="h-4 w-4" />
@@ -345,7 +345,7 @@ function EmptyState({
       </p>
       <GatedButton
         canAct={canCreate}
-        gateReason="create flows"
+        gateReason="criar fluxos"
         onClick={onCreate}
         className="mt-5"
       >

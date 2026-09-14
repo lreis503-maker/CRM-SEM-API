@@ -91,7 +91,7 @@ describe('addContactTagIfAbsent', () => {
       insertError: { code: '42501', message: 'permission denied' },
     });
     await expect(addContactTagIfAbsent(db, input)).rejects.toThrow(
-      'Failed to add contact tag: permission denied'
+      "Não foi possível adicionar a etiqueta ao contato: permission denied"
     );
   });
 });

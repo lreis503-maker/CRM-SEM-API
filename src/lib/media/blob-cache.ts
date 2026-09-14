@@ -55,7 +55,7 @@ export class MediaResponseError extends Error {
   readonly status: number;
 
   constructor(status: number) {
-    super(`Media request failed (${status})`);
+    super(`Falha ao carregar a mídia (${status})`);
     this.name = "MediaResponseError";
     this.status = status;
   }

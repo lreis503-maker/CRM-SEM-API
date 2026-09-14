@@ -59,7 +59,15 @@ export function parseContactCsv(text: string): ParseContactCsvResult {
 
   const headers = lines[0]
     .split(',')
-    .map((h) => h.trim().toLowerCase().replace(/["']/g, ''));
+    .map((h) => {
+      const header = h.trim().toLowerCase().replace(/["']/g, '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const aliases: Record<string, string> = {
+        telefone: 'phone', celular: 'phone', nome: 'name',
+        'e-mail': 'email', empresa: 'company', etiquetas: 'tags',
+      };
+      return aliases[header] ?? header;
+    });
 
   const phoneIdx = headers.indexOf('phone');
   if (phoneIdx === -1) {

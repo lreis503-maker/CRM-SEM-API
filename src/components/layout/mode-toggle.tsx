@@ -19,7 +19,7 @@ export function ModeToggle({ className }: { className?: string }) {
   const t = useTranslations("ModeToggle");
   const { mode, toggleMode } = useTheme();
   const goingTo = mode === "dark" ? "light" : "dark";
-  const switchLabel = t("switchMode", { mode: goingTo });
+  const switchLabel = t("switchMode", { mode: t(`modes.${goingTo}`) });
   
   return (
     <button

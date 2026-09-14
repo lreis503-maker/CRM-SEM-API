@@ -262,7 +262,7 @@ describe("dispatchInboundToFlows — entry triggers (#490)", () => {
     const result = await dispatch({
       kind: "interactive_reply",
       reply_id: "btn_9",
-      reply_title: "Talk to a human",
+      reply_title: "Falar com atendente",
       meta_message_id: "m1",
     });
 

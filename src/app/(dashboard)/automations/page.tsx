@@ -77,7 +77,7 @@ export default function AutomationsPage() {
       if (fetchErr) throw fetchErr
       setAutomations((data ?? []) as Automation[])
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load automations")
+      setError(err instanceof Error ? err.message : "Não foi possível carregar as automações")
     }
   }
 
@@ -169,7 +169,7 @@ export default function AutomationsPage() {
         </div>
         <GatedButton
           canAct={canCreate}
-          gateReason="create automations"
+          gateReason="criar automa??es"
           onClick={() => router.push("/automations/new")}
           className="bg-primary text-primary-foreground hover:bg-primary/90"
         >

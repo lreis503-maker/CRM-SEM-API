@@ -3,11 +3,10 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createTranslator } from 'next-intl';
 
-// Locale dictionaries are hand-maintained. English is the source of
-// truth (src/i18n/request.ts falls back to en.json only when a whole
-// locale file is missing — there is no per-key fallback), so a key
-// that lands in en.json and not in a translation renders as a raw
-// keypath for users on that locale. This guards the parity.
+// Os catálogos são mantidos manualmente. O inglês serve como referência
+// para conferir as chaves; o idioma padrão da aplicação é português.
+// Uma chave ausente aparece como identificador na interface, por isso
+// estes testes verificam a correspondência entre os catálogos.
 
 const MESSAGES_DIR = join(process.cwd(), 'messages');
 const SOURCE_LOCALE = 'en';

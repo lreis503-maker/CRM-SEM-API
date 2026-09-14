@@ -107,7 +107,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            'Provide either `recipients` (preferred) or `phone_numbers` — must be a non-empty array',
+            "Informe recipients ou phone_numbers como uma lista não vazia",
         },
         { status: 400 }
       )
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
 
     if (!template_name) {
       return NextResponse.json(
-        { error: 'template_name is required' },
+        { error: "O nome do modelo é obrigatório" },
         { status: 400 }
       )
     }
@@ -130,7 +130,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            'WhatsApp not configured. Please set up your WhatsApp integration first.',
+            "O WhatsApp não está configurado. Configure a integração com o WhatsApp primeiro.",
         },
         { status: 400 }
       )
@@ -153,7 +153,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            'Template row is malformed locally — run "Sync from Meta" in Settings to repair it before broadcasting.',
+            "O modelo salvo está inválido. Use \"Sincronizar com a Meta\" em Configurações para corrigi-lo antes do disparo.",
         },
         { status: 500 },
       )
@@ -171,7 +171,7 @@ export async function POST(request: Request) {
         results.push({
           phone: recipient.phone,
           status: 'failed',
-          error: 'Invalid phone number format',
+          error: "Formato de telefone inválido",
         })
         failedCount++
         continue
@@ -200,7 +200,7 @@ export async function POST(request: Request) {
           break
         } catch (error) {
           const errorMessage =
-            error instanceof Error ? error.message : 'Unknown error'
+            error instanceof Error ? error.message : "Erro desconhecido"
           if (!isRecipientNotAllowedError(errorMessage)) {
             lastError = errorMessage
             break
@@ -225,7 +225,7 @@ export async function POST(request: Request) {
         results.push({
           phone: recipient.phone,
           status: 'failed',
-          error: lastError || 'Unknown error',
+          error: lastError || "Erro desconhecido",
         })
         failedCount++
       }

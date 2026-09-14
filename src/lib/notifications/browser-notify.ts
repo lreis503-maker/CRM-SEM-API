@@ -99,13 +99,13 @@ export interface NotificationLabels {
 }
 
 export const DEFAULT_NOTIFICATION_LABELS: NotificationLabels = {
-  fallbackTitle: "New message",
-  image: "📷 Photo",
-  audio: "🎤 Voice message",
-  video: "🎬 Video",
-  document: "📄 Document",
-  location: "📍 Location",
-  template: "📋 Template",
+  fallbackTitle: "Nova mensagem",
+  image: "📷 Foto",
+  audio: "🎤 Mensagem de voz",
+  video: "🎬 Vídeo",
+  document: "📄 Documento",
+  location: "📍 Localização",
+  template: "📋 Modelo",
 };
 
 export interface NotificationContent {

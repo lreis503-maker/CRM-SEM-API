@@ -1,184 +1,197 @@
-# wacrm — CRM Template for WhatsApp
+# wacrm — CRM para WhatsApp
 
-> Self-hostable CRM template for WhatsApp® — shared inbox, contacts,
-> sales pipelines, broadcasts, and no-code automations. Fork it, brand
-> it, host it.
+> CRM com hospedagem própria para WhatsApp®: caixa de entrada compartilhada,
+> contatos, funis de vendas, disparos e automações visuais.
+> Crie sua cópia, personalize a marca e hospede onde preferir.
 
 <p align="center">
   <a href="https://www.hostinger.com/web-apps-hosting?REFERRALCODE=WACRMHOST">
-    <img src="./.github/assets/hostinger-deploy.png" alt="Ship your Node.js app in one click — Deploy to Hostinger" width="900">
+    <img src="./.github/assets/hostinger-deploy.png" alt="Publique seu aplicativo Node.js com um clique na Hostinger" width="900">
   </a>
 </p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-violet.svg)](./LICENSE)
+[![Licença: MIT](https://img.shields.io/badge/License-MIT-violet.svg)](./LICENSE)
 [![CI](https://github.com/ArnasDon/wacrm/actions/workflows/ci.yml/badge.svg)](https://github.com/ArnasDon/wacrm/actions/workflows/ci.yml)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)](https://nextjs.org)
 [![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%2B%20Auth-3ecf8e?logo=supabase)](https://supabase.com)
-[![Stars](https://img.shields.io/github/stars/ArnasDon/wacrm?style=social)](https://github.com/ArnasDon/wacrm/stargazers)
+[![Estrelas](https://img.shields.io/github/stars/ArnasDon/wacrm?style=social)](https://github.com/ArnasDon/wacrm/stargazers)
 
-The marketing site and self-host docs live in a separate repo:
+O site de apresentação e os guias de hospedagem ficam no repositório
 [ArnasDon/wacrm-site](https://github.com/ArnasDon/wacrm-site)
-([wacrm.tech](https://wacrm.tech)). This repo is the product —
-clone or fork it to run your own CRM.
+([wacrm.tech](https://wacrm.tech)). Este repositório contém o aplicativo:
+clone-o ou crie uma cópia para executar seu próprio CRM.
 
-## What you get out of the box
+## Funcionalidades incluídas
 
-- **Shared inbox** on the official WhatsApp Business API — multiple
-  agents working one number, per-conversation assignment, status, and
-  notes.
-- **Contacts + tags + custom fields**, CSV import, deduplication.
-- **Sales pipelines** (Kanban) with deals linked to conversations.
-- **Broadcasts** with Meta-approved templates, delivery + read
-  tracking, per-recipient variable substitution.
-- **No-code automations** — triggers on inbound messages, new
-  contacts, keywords, or schedule; conditional branches, waits,
-  tags, webhooks. Visual builder.
-- **AI reply assistant** — bring your own OpenAI or Anthropic key
-  (stored encrypted; no per-seat AI fee, your data stays yours).
-  One-click AI-drafted replies in the inbox, plus an optional
-  auto-reply bot with a per-conversation cap and clean human handoff.
-  Add a **knowledge base** (FAQs, policies, product docs) and it
-  answers from your own content — hybrid retrieval (Postgres full-text,
-  or semantic pgvector when an embeddings key is set).
-- **Real-time dashboard** — response times, daily volume, pipeline
-  value, cross-module activity feed.
-- **Team accounts** — invite teammates by link, role-based access
-  (owner / admin / agent / viewer), ownership transfer. Every install
-  is account-scoped, so one shared inbox can be staffed by a whole
-  team. Solo use stays single-user with zero setup.
-- **Account management** — email, password, avatar, global sign-out.
-- **Public REST API** (`/api/v1`) with scoped, revocable API keys —
-  build your own automations on top of your CRM. See
-  [docs/public-api.md](./docs/public-api.md).
-- **MCP server** — drive your CRM from Claude, Cursor, and other AI
-  assistants over the [Model Context Protocol](https://modelcontextprotocol.io).
-  Read-only by default, opt-in writes. See [docs/mcp.md](./docs/mcp.md)
-  (server in [`mcp-server/`](./mcp-server)).
+- **Caixa de entrada compartilhada** com a API oficial do WhatsApp Business:
+  vários atendentes no mesmo número, atribuição de conversas, status e notas.
+- **Contatos, etiquetas e campos personalizados**, com importação de CSV e
+  identificação de contatos duplicados.
+- **Funis de vendas** em quadro Kanban, com negócios vinculados às conversas.
+- **Disparos** com modelos aprovados pela Meta, acompanhamento de entrega e
+  leitura e substituição de variáveis para cada destinatário.
+- **Automações visuais** acionadas por mensagens recebidas, novos contatos,
+  palavras-chave ou agendamentos. Incluem condições, esperas, etiquetas e webhooks.
+- **Assistente de respostas com IA** usando sua própria chave da OpenAI ou
+  Anthropic, armazenada de forma criptografada. Você paga diretamente ao provedor,
+  sem taxa de IA por atendente. Sugira respostas na caixa de entrada ou ative um
+  agente de resposta automática, com limite por conversa e transferência para
+  atendimento humano. A **base de conhecimento** permite responder a partir das
+  suas perguntas frequentes, políticas e documentos. A busca usa pesquisa textual
+  do Postgres ou busca semântica com pgvector quando há uma chave de vetorização.
+- **Painel em tempo real** com tempo de resposta, volume diário, valor dos
+  negócios e atividade recente dos módulos.
+- **Contas de equipe** com convites por link, funções de proprietário,
+  administrador, atendente e visualizador e transferência de propriedade.
+  Os dados pertencem à conta, permitindo que toda a equipe use a mesma caixa de entrada.
+  O uso individual também funciona sem configuração de equipe.
+- **Gerenciamento de conta**: e-mail, senha, foto de perfil e encerramento de todas as sessões.
+- **API REST pública** em `/api/v1`, com chaves revogáveis e permissões
+  específicas. Consulte [a documentação da API](./docs/public-api.md).
+- **Servidor MCP** para usar o CRM com Claude, Cursor e outros assistentes pelo
+  [Model Context Protocol](https://modelcontextprotocol.io). O acesso é somente
+  leitura por padrão; as gravações precisam ser ativadas. Consulte
+  [o guia MCP](./docs/mcp.md) e [o servidor](./mcp-server).
 
-## Why fork this?
+## Por que criar sua própria cópia?
 
-This is a **template**, not a product. Forking means you get:
+Este projeto é um modelo para personalização. Criar uma cópia permite:
 
-- **Full ownership** — your code, your Supabase project, your domain,
-  your data. No SaaS lock-in, no seat pricing, no trust dance.
-- **Full customisation** — add the fields your team needs, remove the
-  modules you don't, redesign anything. The stack is boring on
-  purpose (Next.js + Supabase + Tailwind) so the learning curve is
-  short.
-- **Zero ops to start** — [Hostinger](https://www.hostinger.com/web-apps-hosting?REFERRALCODE=WACRMHOST)
-  Managed Node.js deploys a fork in a few clicks. No Docker, no
-  Kubernetes, no infra team needed.
-  ([See below ↓](#-deploy-on-hostinger-recommended))
-- **Real security primitives** — token encryption (AES-256-GCM), RLS
-  on every table, HMAC-verified webhooks, CSP, rate limiting, CI
-  typecheck/build on every PR.
+- **Controlar tudo**: código, projeto Supabase, domínio e dados, sem depender de
+  uma plataforma SaaS ou pagar por usuário.
+- **Personalizar a experiência**: adicione campos, remova módulos e adapte o
+  visual. A base usa Next.js, Supabase e Tailwind.
+- **Começar com uma hospedagem gerenciada**: a
+  [Hostinger](https://www.hostinger.com/web-apps-hosting?REFERRALCODE=WACRMHOST)
+  permite publicar uma cópia usando Node.js gerenciado, sem configurar Docker,
+  Kubernetes ou uma equipe de infraestrutura.
+- **Usar os controles de segurança do projeto**: criptografia AES-256-GCM para
+  tokens, RLS nas tabelas, verificação HMAC dos webhooks, CSP, limites de
+  solicitações e verificações de tipos e compilação na integração contínua.
 
-Not a framework. Not an SDK. A concrete, working CRM you can stand up
-in an afternoon and make yours.
+É um CRM pronto para executar e adaptar ao seu negócio.
 
-## Quick start
+## Início rápido
+
+Requisito: Node.js 20 ou superior.
 
 ```bash
-# Fork on GitHub first: https://github.com/ArnasDon/wacrm → Fork
-git clone https://github.com/<your-username>/wacrm.git
+# Primeiro, crie uma cópia do repositório no GitHub.
+git clone https://github.com/<seu-usuario>/wacrm.git
 cd wacrm
 npm install
-cp .env.local.example .env.local   # fill in Supabase + Meta creds
+cp .env.local.example .env.local
+# Preencha .env.local com as credenciais do Supabase e da Meta.
 npm run dev
 ```
 
-Open <http://localhost:3000>. You'll be redirected to `/login` (or
-`/dashboard` if already signed in).
+No PowerShell, copie a configuração com:
 
-The UI ships in English, Korean, Brazilian Portuguese and Spanish — set
-`NEXT_PUBLIC_APP_LOCALE` to `en`, `ko`, `pt` or `es` in `.env.local`
-(catalogues live in `messages/`).
+```powershell
+Copy-Item .env.local.example .env.local
+```
 
-Prefer containers? See [docs/docker.md](./docs/docker.md) for the
-Dockerfile + Docker Compose setup.
+Abra [http://localhost:3000](http://localhost:3000). Você será encaminhado para
+`/login` ou para `/dashboard`, se já estiver conectado.
 
-## 🚀 Deploy on Hostinger (recommended)
+A interface usa **português brasileiro por padrão**, com datas, meses e números
+no formato brasileiro. A configuração de idioma em `.env.local` é:
+
+```dotenv
+NEXT_PUBLIC_APP_LOCALE=pt-BR
+```
+
+`pt` e `pt_BR` também selecionam o português brasileiro. Os catálogos
+`en`, `ko` e `es` continuam disponíveis em `messages/`.
+Valores desconhecidos usam português. Reinicie o servidor de desenvolvimento
+após alterar a variável; em produção, gere uma nova compilação.
+
+Para importar contatos, o CSV aceita os cabeçalhos `telefone`, `nome`,
+`email`, `empresa` e `etiquetas`. A coluna de telefone é obrigatória
+e deve conter números internacionais no formato E.164, como `+5511999999999`.
+Os cabeçalhos em inglês continuam aceitos.
+
+Para executar em contêineres, consulte [o guia Docker](./docs/docker.md).
+
+## Publicação na Hostinger
 
 <p align="center">
   <a href="https://www.hostinger.com/web-apps-hosting?REFERRALCODE=WACRMHOST">
-    <img src="./.github/assets/hostinger-deploy.png" alt="Ship your Node.js app in one click — Deploy to Hostinger" width="1000">
-  </a>
-</p>
-<p align="center">
-  <a href="https://wacrm.tech/docs/deployment-hostinger">
-    <img src="https://img.shields.io/badge/Step--by--step_guide-wacrm.tech%2Fdocs-111?style=for-the-badge" alt="Step-by-step guide" height="44">
+    <img src="./.github/assets/hostinger-deploy.png" alt="Publique seu aplicativo Node.js na Hostinger" width="1000">
   </a>
 </p>
 
-**wacrm is built to run on [Hostinger](https://www.hostinger.com/web-apps-hosting?REFERRALCODE=WACRMHOST).**
-It's the path we test, document, and recommend — and the fastest way
-to get a production-grade CRM live without owning a VPS or a
-Kubernetes cluster.
+O projeto inclui orientações de publicação na
+[Hostinger](https://www.hostinger.com/web-apps-hosting?REFERRALCODE=WACRMHOST).
+Consulte os recursos e as condições do plano escolhido antes de contratar.
 
-### Why Hostinger?
+| Recurso | Utilidade |
+| --- | --- |
+| Publicação pelo Git | Conecte sua cópia do GitHub e publique as alterações da branch `main`. |
+| Node.js gerenciado | Execute o Next.js sem administrar processos e proxies manualmente. |
+| HTTPS e domínio | Configure o endereço público e o HTTPS exigido pelo webhook do WhatsApp. |
+| CDN e cache | Distribua os arquivos estáticos e melhore o carregamento do painel. |
+| Variáveis e registros no hPanel | Configure as credenciais do Supabase e da Meta e consulte os registros da aplicação. |
+| Proteção e cópias de segurança | Confira os recursos de proteção e backup incluídos no plano. |
+| Custo da hospedagem | Compare o plano gerenciado com uma VPS e considere o Supabase separadamente. |
+| Suporte | Consulte os canais de atendimento e os idiomas disponíveis. |
 
-| | |
-|---|---|
-| **One-click Git deploy** | Connect your fork, push to `main`, Hostinger builds and ships it. No SSH, no Docker, no CI to wire up — this repo's own `main` deploys this way. |
-| **Managed Node.js** | Next.js 16 (App Router, server actions, ISR) runs out of the box on [Premium, Business, and Cloud](https://www.hostinger.com/web-apps-hosting?REFERRALCODE=WACRMHOST) shared plans. You don't manage Node versions, processes, or reverse proxies. |
-| **Free SSL + free domain** | Automatic Let's Encrypt on your custom domain (or a free one included with annual plans). HTTPS is on by default — required for the WhatsApp Business webhook. |
-| **Global CDN + LiteSpeed** | Static assets cached at the edge, dynamic routes served from LiteSpeed. Snappy dashboards out of the box, no Cloudflare setup required. |
-| **Env vars + logs in hPanel** | Set `SUPABASE_*`, `WHATSAPP_*`, and `ENCRYPTION_KEY` from the panel — no `.env` on the server. Live application logs in the same UI. |
-| **DDoS protection + daily backups** | Built-in, no add-ons. The webhook endpoint is a public target — having protection at the edge matters. |
-| **Cheaper than a VPS** | Plans start at a few dollars a month — order-of-magnitude less than a comparable managed Node.js host, and you don't pay extra for the database (that's Supabase). |
-| **24/7 human support** | Live chat support in 20+ languages — useful when your CRM is the thing your team relies on to talk to customers. |
+Para publicar:
 
-### The 60-second version
+1. Crie uma cópia deste repositório no GitHub.
+2. No hPanel, abra a área de sites, escolha a criação de um aplicativo Node.js
+   e conecte sua cópia do repositório.
+3. Configure as variáveis do Supabase e da Meta e
+   `NEXT_PUBLIC_APP_LOCALE=pt-BR`.
+4. Envie as alterações para `main` e acompanhe a compilação e a publicação.
 
-1. **Fork** this repo on GitHub.
-2. In **hPanel → Websites → Create**, pick **Node.js** and connect
-   your fork.
-3. Paste your Supabase + Meta env vars into hPanel.
-4. Push to `main`. Hostinger builds and serves it. Done.
+Consulte [o guia de publicação na Hostinger](https://wacrm.tech/docs/deployment-hostinger).
 
-Full walkthrough with screenshots:
-**[wacrm.tech/docs/deployment-hostinger](https://wacrm.tech/docs/deployment-hostinger)**.
+O projeto tem licença MIT e também pode ser executado na Vercel, Railway ou em
+uma VPS com Node.js. A Hostinger é uma opção de hospedagem, não um requisito.
 
-> _Note: wacrm is MIT-licensed and runs anywhere Node.js does
-> (Vercel, Railway, your own VPS). Hostinger is recommended, not
-> required._
+## Documentação
 
-## Documentation
+Os guias completos de hospedagem, configuração do Supabase, migrações e API do
+WhatsApp ficam em [wacrm.tech/docs](https://wacrm.tech/docs), com o código do site
+em [ArnasDon/wacrm-site](https://github.com/ArnasDon/wacrm-site).
 
-Full self-host documentation — Supabase migrations, WhatsApp Business
-API config, and production deploy — lives at
-**[wacrm.tech/docs](https://wacrm.tech/docs)**
-(source: [ArnasDon/wacrm-site](https://github.com/ArnasDon/wacrm-site)).
+- [Primeiros passos](https://wacrm.tech/docs/getting-started)
+- [Configuração do Supabase](https://wacrm.tech/docs/supabase-setup)
+- [Configuração do WhatsApp](https://wacrm.tech/docs/whatsapp-setup)
+- [Variáveis de ambiente](https://wacrm.tech/docs/environment-variables)
+- [Publicação na Hostinger](https://wacrm.tech/docs/deployment-hostinger)
+- [Arquitetura](https://wacrm.tech/docs/architecture)
+- [Solução de problemas](https://wacrm.tech/docs/troubleshooting)
+- [Problemas de conexão com o WhatsApp](./docs/whatsapp-connection-troubleshooting.md):
+  significado dos erros ao salvar a configuração e códigos para informar ao suporte da Meta.
+- [Várias contas do WhatsApp Business](./docs/multi-waba.md): uso de um ou vários
+  aplicativos da Meta e lista de segredos em `META_APP_SECRET`.
+- [API pública](./docs/public-api.md)
+- [Integração MCP](./docs/mcp.md)
 
-Key pages:
-- [Getting started](https://wacrm.tech/docs/getting-started)
-- [Supabase setup](https://wacrm.tech/docs/supabase-setup)
-- [WhatsApp setup](https://wacrm.tech/docs/whatsapp-setup)
-- [Environment variables](https://wacrm.tech/docs/environment-variables)
-- [Deploy on Hostinger](https://wacrm.tech/docs/deployment-hostinger)
-- [Architecture](https://wacrm.tech/docs/architecture)
-- [Troubleshooting](https://wacrm.tech/docs/troubleshooting)
-- [WhatsApp connection troubleshooting](./docs/whatsapp-connection-troubleshooting.md)
-  — what each "Save Configuration" error means, and the Meta code /
-  trace id to quote to Meta support
-- [Several WABAs on one deployment](./docs/multi-waba.md) — one Meta
-  App or several; how `META_APP_SECRET` takes a comma-separated list
+## Tecnologias
 
-## Stack
+- **Aplicação**: Next.js 16 com App Router, React 19, TypeScript e Tailwind v4.
+- **Dados**: Supabase com Postgres, autenticação, armazenamento e RLS.
+- **WhatsApp**: API de Nuvem oficial do WhatsApp Business da Meta.
 
-- **App** — Next.js 16 (App Router), React 19, TypeScript, Tailwind v4.
-- **Data** — Supabase (Postgres + Auth + Storage + RLS).
-- **WhatsApp** — Meta Cloud API (official WhatsApp Business API).
+## Verificações de desenvolvimento
 
-## Contributing
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
 
-This is a template, not a collaborative product — the expected flow is
-fork → customise → deploy, **not** upstream contribution. Bug reports
-and security issues are welcome; feature PRs often belong in your fork
-rather than here. Details in
-[`CONTRIBUTING.md`](./CONTRIBUTING.md) and
-[`.github/SECURITY.md`](./.github/SECURITY.md).
+## Contribuições
 
-## License
+O fluxo principal deste modelo é criar uma cópia, personalizar e publicar.
+Relatos de falhas e problemas de segurança são bem-vindos. Funcionalidades
+específicas do seu negócio podem ficar na sua própria cópia. Consulte
+[CONTRIBUTING.md](./CONTRIBUTING.md) e [as orientações de segurança](./.github/SECURITY.md).
 
-[MIT](./LICENSE). Fork it, brand it, host it.
+## Licença
+
+[MIT](./LICENSE). Crie sua cópia, personalize a marca e hospede.

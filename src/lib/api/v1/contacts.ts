@@ -116,7 +116,7 @@ export async function findOrCreateContact(
   const sanitized = sanitizePhoneForMeta(input.phone);
   if (!isValidE164(sanitized)) {
     throw new ContactError(
-      "'phone' must be a valid phone number in E.164 format (e.g. +14155550123)",
+      "O campo 'phone' deve ser um telefone válido no formato E.164 (ex.: +5511999999999)",
       400
     );
   }
@@ -145,7 +145,7 @@ export async function findOrCreateContact(
       if (raced) return { id: raced.id, created: false };
     }
     console.error('[api/v1/contacts] create error:', error);
-    throw new ContactError('Failed to create contact', 500);
+    throw new ContactError("Não foi possível criar o contato", 500);
   }
 
   return { id: created.id, created: true };

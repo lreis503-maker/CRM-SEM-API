@@ -1,5 +1,6 @@
 'use client';
 
+import { APP_LOCALE } from "@/i18n/locale";
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
@@ -66,6 +67,7 @@ interface ContactWithTags extends Contact {
 
 export default function ContactsPage() {
   const t = useTranslations('Contacts.page');
+  const tCommon = useTranslations('Common');
   const supabase = createClient();
   const canEdit = useCan('send-messages');
   const canEditSettings = useCan('edit-settings');
@@ -363,7 +365,7 @@ export default function ContactsPage() {
           <GatedButton
             variant="outline"
             canAct={canEdit}
-            gateReason="add or import contacts"
+            gateReason="adicionar ou importar contatos"
             onClick={() => setImportOpen(true)}
             className="border-border text-muted-foreground hover:bg-muted"
           >
@@ -372,7 +374,7 @@ export default function ContactsPage() {
           </GatedButton>
           <GatedButton
             canAct={canEdit}
-            gateReason="add or import contacts"
+            gateReason="adicionar ou importar contatos"
             onClick={openAddForm}
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
@@ -445,7 +447,7 @@ export default function ContactsPage() {
                       <Checkbox
                         checked={selectedTagIds.includes(tag.id)}
                         onCheckedChange={() => toggleTagFilter(tag.id)}
-                        aria-label={`Filter by ${tag.name}`}
+                        aria-label={tCommon('filterByTag', { name: tag.name })}
                       />
                       <span
                         className="size-2.5 shrink-0 rounded-full"
@@ -517,7 +519,7 @@ export default function ContactsPage() {
               variant="destructive"
               size="sm"
               canAct={canEdit}
-              gateReason="delete contacts"
+              gateReason="excluir contatos"
               onClick={() => setBulkDeleteOpen(true)}
             >
               <Trash2 className="size-4" />
@@ -573,7 +575,7 @@ export default function ContactsPage() {
                     {!hasActiveFilters && (
                       <GatedButton
                         canAct={canEdit}
-                        gateReason="add or import contacts"
+                        gateReason="adicionar ou importar contatos"
                         variant="outline"
                         size="sm"
                         onClick={openAddForm}
@@ -597,7 +599,7 @@ export default function ContactsPage() {
                     <Checkbox
                       checked={selected.has(contact.id)}
                       onCheckedChange={() => toggleSelect(contact.id)}
-                      aria-label={`Select ${contact.name || contact.phone}`}
+                      aria-label={t('selectContactLabel', { name: contact.name || contact.phone })}
                     />
                   </TableCell>
                   <TableCell className="text-foreground font-medium">
@@ -638,7 +640,7 @@ export default function ContactsPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs hidden lg:table-cell">
-                    {new Date(contact.created_at).toLocaleDateString('en-US', {
+                    {new Date(contact.created_at).toLocaleDateString(APP_LOCALE, {
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric',

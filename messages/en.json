@@ -15,7 +15,7 @@
     "createAccount": "Create account"
   },
   "Sidebar": {
-    "title": "CRM Template for WhatsApp",
+    "title": "Vortex CRM",
     "primaryNav": "Primary",
     "dashboard": "Dashboard",
     "inbox": "Inbox",
@@ -59,7 +59,11 @@
     "menuSignOut": "Sign out"
   },
   "ModeToggle": {
-    "switchMode": "Switch to {mode} mode"
+    "switchMode": "Switch to {mode} mode",
+    "modes": {
+      "light": "Light",
+      "dark": "Dark"
+    }
   },
   "AccountAccess": {
     "unlinkedTitle": "This user is not linked to an account",
@@ -322,6 +326,7 @@
       "subtitleZero": "Manage your contact list.",
       "customFieldsBtn": "Custom fields",
       "selectAllOnPage": "Select all contacts on this page",
+      "selectContactLabel": "Select {name}",
       "importBtn": "Import",
       "addContactBtn": "Add Contact",
       "searchPlaceholder": "Search by name, phone, or email...",
@@ -401,9 +406,9 @@
         "custom": "Custom Fields",
         "deals": "Deals",
         "tags": "Tags",
-      "noTags": "No tags",
-      "noDeals": "No deals",
-      "addNotePlaceholder": "Add a note..."
+        "noTags": "No tags",
+        "noDeals": "No deals",
+        "addNotePlaceholder": "Add a note..."
       },
       "actions": {
         "edit": "Edit",
@@ -1379,7 +1384,7 @@
       "done": "Done",
       "dialogTitle": "Invite a teammate",
       "networkError": "Could not reach the server. Try again?",
-      "fallbackAccountName": "our wacrm account",
+      "fallbackAccountName": "our Vortex CRM account",
       "dialogDesc": "Generate a one-time invite link. Share it via WhatsApp, Slack, or any channel you like — no email service required.",
       "roleLabel": "Role",
       "validForLabel": "Link valid for",
@@ -1396,7 +1401,7 @@
       "labelTooLong": "Label must be {max} characters or fewer",
       "copied": "Invite link copied",
       "clipboardBlocked": "Clipboard blocked — copy the link manually",
-      "whatsappMessage": "Join {accountName} on wacrm using this link (valid for {expiresInDays} days): {url}"
+      "whatsappMessage": "Join {accountName} on Vortex CRM using this link (valid for {expiresInDays} days): {url}"
     },
     "tagsAndFields": {
       "title": "Fields & tags",
@@ -1456,13 +1461,11 @@
       "deleteLocallyAria": "Delete template locally",
       "deleteMetaLocallyTitle": "Delete from Meta and locally",
       "deleteLocallyTitle": "Delete locally",
-      
       "dialogEditTitle": "Edit Message Template",
       "dialogNewTitle": "New Message Template",
       "dialogEditDesc": "Save your changes to re-submit to Meta. Status will flip back to PENDING during review.",
       "dialogNewDesc": "Build a template and submit it to Meta for approval. Once approved, you can use it in broadcasts and the inbox.",
       "authWarning": "AUTHENTICATION templates have a fixed body + OTP button shape that needs a different builder. Create them in Meta WhatsApp Manager for now and use <bold>Sync from Meta</bold> to bring them in.",
-      
       "templateName": "Template Name",
       "namePlaceholder": "e.g. order_confirmation",
       "nameFixed": "Name is fixed once a template exists on Meta — create a new template to change it.",
@@ -1471,7 +1474,6 @@
       "language": "Language",
       "langFixed": "Language is fixed once a template exists on Meta.",
       "langHint": "Must match the exact code on Meta — <code>en_US</code> and <code>en</code> are distinct.",
-      
       "header": "Header",
       "headerNone": "None",
       "headerText": "Text",
@@ -1481,7 +1483,6 @@
       "headerTextPlaceholder": "Header text (max 60 chars, optional {{1}})",
       "headerSampleAria": "Sample value for header variable",
       "headerSamplePlaceholder": "Sample value for {{1}} (required for Meta review)",
-      
       "uploadImage": "Upload image",
       "uploadVideo": "Upload video",
       "uploadDocument": "Upload document",
@@ -1493,17 +1494,14 @@
       "mediaHint": "Upload a file or paste a public HTTPS link — we upload it to Meta for review automatically.",
       "videoHint": " MP4 or 3GPP, ≤16 MB, ≤60 seconds recommended.",
       "documentHint": " PDF, Word, PowerPoint, Excel or text, ≤100 MB via link (≤16 MB when uploaded here).",
-      
       "bodyText": "Body Text",
       "bodyPlaceholder": "Hello {{1}}, your order {{2}} is confirmed.",
       "bodyHint": "Use {{1}}, {{2}} for variables (must be contiguous starting at {{1}}).",
       "sampleValues": "Sample values (Meta uses these to review your template)",
       "sampleAria": "Sample value for body variable {var}",
       "samplePlaceholder": "Sample for {var}",
-      
       "footer": "Footer (optional)",
       "footerPlaceholder": "Optional footer text (max 60 chars)",
-      
       "buttons": "Buttons (optional)",
       "addButton": "Add Button",
       "buttonsLimit": "Up to {max} buttons. QUICK_REPLY buttons must come before URL / phone / copy-code buttons.",
@@ -1516,19 +1514,16 @@
       "urlSamplePlaceholder": "Example value for {{1}} (required when URL has a variable)",
       "phonePlaceholder": "+15551234567",
       "codePlaceholder": "Example code (e.g. SUMMER20)",
-      
       "cancel": "Cancel",
       "saving": "Saving…",
       "submitting": "Submitting…",
       "saveResubmit": "Save & Resubmit",
       "submitApproval": "Submit for Approval",
-      
       "deleteDialogTitle": "Delete template?",
-      "deleteMetaDesc": "\"{name}\" will be deleted from Meta and from wacrm. Active broadcasts using this template will start failing on their next send. This can't be undone.",
-      "deleteLocalDesc": "\"{name}\" will be deleted from wacrm. It was never submitted to Meta, so no remote cleanup is needed.",
+      "deleteMetaDesc": "\"{name}\" will be deleted from Meta and from Vortex CRM. Active broadcasts using this template will start failing on their next send. This can't be undone.",
+      "deleteLocalDesc": "\"{name}\" will be deleted from Vortex CRM. It was never submitted to Meta, so no remote cleanup is needed.",
       "deleting": "Deleting…",
       "delete": "Delete",
-      
       "toastLoadFailed": "Failed to load templates",
       "toastSubmitFailed": "Failed to submit",
       "toastSubmitEditSuccess": "Edit submitted — Meta typically reviews within 24 hours.",
@@ -1569,7 +1564,7 @@
       "notConnected": "Not Connected",
       "connectedDesc": "Your access token authenticates with Meta. See Registration status below for whether webhooks are actually wired.",
       "notConnectedDesc": "Configure your Meta API credentials below to connect your WhatsApp Business account.",
-      "registered": "Registered — Meta will deliver events to wacrm",
+      "registered": "Registered — Meta will deliver events to Vortex CRM",
       "notRegistered": "Not registered — Meta will not deliver events",
       "verifyWithMeta": "Verify with Meta",
       "subscribedSince": "Subscribed since {date}. Click Verify with Meta if events stop arriving.",
@@ -1593,7 +1588,7 @@
       "twoStepPin": "Two-step verification PIN",
       "optional": "(optional)",
       "pinPlaceholder": "6-digit PIN from Meta WhatsApp Manager",
-      "pinHint": "Needed only to wire inbound messages for a production number. Set it in Meta Business Manager → WhatsApp Accounts → Phone Numbers → Two-step verification, then paste it here so wacrm can subscribe the number — otherwise Meta routes inbound events to whichever app last claimed it (the symptom that hits second numbers under a shared WABA). Meta test numbers have no PIN and are pre-registered — leave this blank for them. Leaving it blank also keeps an existing registration untouched.",
+      "pinHint": "Needed only to wire inbound messages for a production number. Set it in Meta Business Manager → WhatsApp Accounts → Phone Numbers → Two-step verification, then paste it here so Vortex CRM can subscribe the number — otherwise Meta routes inbound events to whichever app last claimed it (the symptom that hits second numbers under a shared WABA). Meta test numbers have no PIN and are pre-registered — leave this blank for them. Leaving it blank also keeps an existing registration untouched.",
       "webhookTitle": "Webhook Configuration",
       "webhookDesc": "Use this URL as your webhook callback in the Meta App Dashboard.",
       "webhookUrl": "Webhook Callback URL",
@@ -1661,7 +1656,9 @@
       "phoneNumberIdNotNumeric": "Phone Number ID must contain only digits. Copy the numeric id from Meta → WhatsApp → API Setup, not the phone number itself.",
       "wabaIdNotNumeric": "WhatsApp Business Account ID must contain only digits. Copy it from Meta → WhatsApp → API Setup.",
       "wabaSubscribed": "The WhatsApp Business Account is subscribed to this app — inbound webhooks can be delivered.",
-      "wabaNotSubscribed": "The WhatsApp Business Account is not subscribed to this app, so Meta will not deliver inbound webhooks. Re-enter the access token and save again to subscribe it."
+      "wabaNotSubscribed": "The WhatsApp Business Account is not subscribed to this app, so Meta will not deliver inbound webhooks. Re-enter the access token and save again to subscribe it.",
+      "webhookUnavailable": "Incoming messages are unavailable",
+      "webhookSecretMissing": "The server is missing the Meta App Secret or is using the example value. Set META_APP_SECRET in .env.local or your hosting settings to the secret in Meta for Developers → App settings → Basic. This secret is different from the verify token and access token. Restart the server and test the connection."
     },
     "sections": {
       "overview": "Overview",
@@ -1709,7 +1706,6 @@
       "profileSaved": "Profile saved",
       "emailChangeFailed": "Email change failed: {message}",
       "profileSavedEmailCheck": "Profile saved — check your email to confirm the address change",
-      
       "passwordTitle": "Password",
       "passwordDesc": "Use at least {min} characters. You will stay signed in on this device after changing it.",
       "currentPassword": "Current password",
@@ -1723,7 +1719,6 @@
       "currentPasswordIncorrect": "Current password is incorrect",
       "passwordUpdateFailed": "Password update failed: {message}",
       "passwordUpdated": "Password updated",
-      
       "sessionsTitle": "Active sessions",
       "sessionsDesc": "Sign out of every device where you're logged in — including this one. Useful if you lost a laptop or shared your password.",
       "signOutAll": "Sign out of all devices",
@@ -1742,7 +1737,12 @@
       "useMode": "Use {mode} mode",
       "active": "Active",
       "accentColor": "Accent color",
-      "useTheme": "Use {name} theme"
+      "useTheme": "Use {name} theme",
+      "modes": {
+        "light": "Light",
+        "dark": "Dark"
+      },
+      "themeId": "Theme ID: {id}"
     },
     "security": {
       "title": "Login & security",
@@ -1824,7 +1824,7 @@
     },
     "aiConfig": {
       "title": "Agent setup",
-      "description": "Bring your own OpenAI or Anthropic key. wacrm calls the provider directly with your key — no per-seat AI fees, and your data stays yours. This powers AI-drafted replies in the inbox, the auto-reply bot, and the Playground.",
+      "description": "Bring your own OpenAI or Anthropic key. Vortex CRM calls the provider directly with your key — no per-seat AI fees, and your data stays yours. This powers AI-drafted replies in the inbox, the auto-reply bot, and the Playground.",
       "adminOnlyConfig": "Only admins and owners can change the AI configuration.",
       "loadFailed": "Failed to load AI configuration",
       "providerAndKey": "Provider & key",
@@ -1890,6 +1890,26 @@
       "editDoc": "Edit",
       "deleteDoc": "Delete",
       "loading": "Loading…"
+    },
+    "quickReplies": {
+      "title": "Quick replies",
+      "description": "Reusable snippets — plain text or a saved interactive message — that agents can insert from the inbox composer.",
+      "newReply": "New quick reply",
+      "editReply": "Edit quick reply",
+      "empty": "No quick replies yet. Create one to reuse it across conversations.",
+      "name": "Name",
+      "namePlaceholder": "e.g. Business hours",
+      "text": "Text",
+      "interactive": "Interactive",
+      "messagePlaceholder": "The message text to insert",
+      "cancel": "Cancel",
+      "save": "Save",
+      "nameRequired": "Give the quick reply a name.",
+      "saveFailed": "Couldn't save the quick reply.",
+      "updated": "Quick reply updated.",
+      "created": "Quick reply created.",
+      "deleteConfirm": "Delete this quick reply?",
+      "deleteFailed": "Couldn't delete the quick reply."
     }
   },
   "SignupPage": {
@@ -1901,7 +1921,7 @@
     "titleJoin": "Create account & join",
     "title": "Create account",
     "descJoin": "Verify your email, then accept the invitation to join your team.",
-    "desc": "Get started with CRM Template for WhatsApp",
+    "desc": "Get started with Vortex CRM",
     "fullNameLabel": "Full name",
     "fullNamePlaceholder": "John Doe",
     "emailLabel": "Email",
@@ -2034,5 +2054,20 @@
   },
   "DashboardShell": {
     "loading": "Loading..."
+  },
+  "Common": {
+    "loading": "Loading...",
+    "close": "Close",
+    "readOnlyAction": "Read-only — your role can't {action}",
+    "filterByTag": "Filter by {name}",
+    "pickColor": "Pick color {color}",
+    "jumpToNode": "Jump to node {node}",
+    "messageBody": "Message body…",
+    "headerSample": "Header sample",
+    "estimatedRecipients": "estimated recipients",
+    "selectAudienceEstimate": "Select an audience type to see the estimate.",
+    "funnel": "Funnel",
+    "tag": "Tag",
+    "urlButtonVariable": "URL button \"{text}\" — value for "
   }
 }

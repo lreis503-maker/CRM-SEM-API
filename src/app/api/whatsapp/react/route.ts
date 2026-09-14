@@ -39,7 +39,7 @@ export async function POST(request: Request) {
 
     if (!message_id || typeof emoji !== 'string') {
       return NextResponse.json(
-        { error: 'message_id and emoji are required' },
+        { error: "O ID da mensagem e o emoji são obrigatórios" },
         { status: 400 },
       );
     }
@@ -52,14 +52,14 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (msgError || !targetMessage) {
-      return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Mensagem não encontrada' }, { status: 404 });
     }
 
     if (!targetMessage.message_id) {
       // No Meta ID yet — usually a sending/failed agent message. We can't
       // tell Meta to react to a message it never received.
       return NextResponse.json(
-        { error: 'Cannot react to a message that has not been sent to WhatsApp' },
+        { error: "Não é possível reagir a uma mensagem que ainda não foi enviada ao WhatsApp" },
         { status: 400 },
       );
     }
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
 
     if (convError || !conversation) {
       return NextResponse.json(
-        { error: 'Conversation not found' },
+        { error: "Conversa não encontrada" },
         { status: 404 },
       );
     }
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
     const sendTarget = resolveContactSendTarget(contact);
     if (!sendTarget) {
       return NextResponse.json(
-        { error: 'Contact has no phone number or WhatsApp user ID' },
+        { error: "O contato não tem telefone nem ID de usuário do WhatsApp" },
         { status: 400 },
       );
     }
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
 
     if (configError || !config) {
       return NextResponse.json(
-        { error: 'WhatsApp not configured.' },
+        { error: "O WhatsApp não está configurado." },
         { status: 400 },
       );
     }
@@ -117,10 +117,10 @@ export async function POST(request: Request) {
       });
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Unknown Meta API error';
+        err instanceof Error ? err.message : "Erro desconhecido na API da Meta";
       console.error('[whatsapp/react] Meta send failed:', message);
       return NextResponse.json(
-        { error: `Meta API error: ${message}` },
+        { error: `Erro na API da Meta: ${message}` },
         { status: 502 },
       );
     }
@@ -137,7 +137,7 @@ export async function POST(request: Request) {
       if (delError) {
         console.error('[whatsapp/react] DB delete failed:', delError.message);
         return NextResponse.json(
-          { error: 'Reaction sent to Meta but DB delete failed' },
+          { error: "Reação enviada para a Meta, mas não foi possível removê-la do banco de dados" },
           { status: 500 },
         );
       }
@@ -158,7 +158,7 @@ export async function POST(request: Request) {
       if (upsertError) {
         console.error('[whatsapp/react] DB upsert failed:', upsertError.message);
         return NextResponse.json(
-          { error: 'Reaction sent to Meta but DB upsert failed' },
+          { error: "Reação enviada para a Meta, mas não foi possível salvá-la no banco de dados" },
           { status: 500 },
         );
       }

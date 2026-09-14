@@ -1,5 +1,6 @@
 "use client";
 
+import { APP_DATE_LOCALE } from "@/i18n/date-locale";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -253,7 +254,7 @@ export default function NotificationsPage() {
                       </p>
                     )}
                     <p className="mt-1 text-[11px] text-muted-foreground/70">
-                      {formatDistanceToNow(new Date(n.created_at), {
+                      {formatDistanceToNow(new Date(n.created_at), { locale: APP_DATE_LOCALE,
                         addSuffix: true,
                       })}
                     </p>

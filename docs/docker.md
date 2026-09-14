@@ -1,76 +1,74 @@
-# Running with Docker
+# Executar com Docker
 
-The repo ships a multi-stage `Dockerfile` (Next.js standalone output,
-runs as a non-root user) and a `docker-compose.yml` with a single
-`app` service. Supabase is external — point the app at your hosted
-(or self-hosted) Supabase project via env vars; no database container
-is included.
+O projeto inclui um `Dockerfile` em várias etapas, com a saída independente
+do Next.js e execução com usuário sem privilégios de administrador.
+O `docker-compose.yml` define um serviço `app`. O Supabase é externo:
+configure o endereço do seu projeto hospedado ou local nas variáveis de ambiente.
+Não há um contêiner de banco de dados nesta configuração.
 
-## Quick start
+## Início rápido
 
-1. Copy the env template and fill it in:
+1. Copie o arquivo de exemplo e preencha as credenciais:
 
    ```bash
    cp .env.local.example .env.local
    ```
 
-2. Build and start (the `--env-file` flag is required — Compose only
-   reads `.env` by default for `${VAR}` substitution, and this project
-   keeps its config in `.env.local`):
+   No PowerShell:
+
+   ```powershell
+   Copy-Item .env.local.example .env.local
+   ```
+
+2. Compile e inicie os contêineres. O parâmetro `--env-file` é necessário,
+   pois o Compose lê `.env` por padrão, enquanto este projeto usa `.env.local`:
 
    ```bash
    docker compose --env-file .env.local up --build -d
    ```
 
-3. The app is served on [http://localhost:3000](http://localhost:3000)
-   (publish it elsewhere with `HOST_PORT=8080` in `.env.local`).
+3. Acesse [http://localhost:3000](http://localhost:3000). Para publicar em outra
+   porta, defina `HOST_PORT=8080` em `.env.local`.
 
-> Use `HOST_PORT`, not `PORT`, to move the published port. `PORT` is
-> what the server listens on _inside_ the container, and `env_file`
-> would inject it there — leaving the app on a port the mapping and
-> the healthcheck don't target. Compose pins it to 3000 for that
-> reason.
+Use `HOST_PORT` para alterar a porta externa. A variável `PORT` controla a
+porta interna do servidor e é fixada em 3000 pelo Compose para corresponder ao
+mapeamento e à verificação de saúde.
 
-## Build-time vs runtime variables
+## Variáveis de compilação e execução
 
-- `NEXT_PUBLIC_*` variables are **inlined into the client bundle at
-  build time**. They are passed as Docker build args by
-  `docker-compose.yml`. If you change any of them, rebuild:
-  `docker compose --env-file .env.local up --build -d`. This includes
-  `NEXT_PUBLIC_APP_LOCALE` (`en | ko | pt | es`), so the UI language is
-  fixed per image.
-- Everything else (`SUPABASE_SERVICE_ROLE_KEY`, `ENCRYPTION_KEY`,
-  `META_APP_SECRET`, …) is read at **runtime** from `.env.local` via
-  `env_file` and is never baked into the image — safe to change with
-  just a container restart.
+- As variáveis `NEXT_PUBLIC_*` são incorporadas ao código do navegador durante
+  a compilação. O Compose as transmite como argumentos de compilação. Ao alterá-las,
+  execute novamente `docker compose --env-file .env.local up --build -d`.
+  O idioma padrão é `NEXT_PUBLIC_APP_LOCALE=pt-BR`. Os valores `pt`,
+  `en`, `ko` e `es` também são aceitos.
+- As demais variáveis, como `SUPABASE_SERVICE_ROLE_KEY`, `ENCRYPTION_KEY` e
+  `META_APP_SECRET`, são lidas durante a execução por meio de `env_file`.
+  Elas não ficam incorporadas à imagem. Para recarregar alterações no arquivo,
+  recrie o serviço com `docker compose --env-file .env.local up -d --force-recreate`.
 
-## Plain Docker (no Compose)
+## Docker sem Compose
 
 ```bash
 docker build \
-  --build-arg NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co \
-  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key \
+  --build-arg NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co \
+  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-chave-anonima \
+  --build-arg NEXT_PUBLIC_APP_LOCALE=pt-BR \
   -t wacrm .
 
 docker run -d --env-file .env.local -e PORT=3000 -p 3000:3000 wacrm
 ```
 
-## Notes
+## Observações
 
-- Database migrations under `supabase/` are **not** run by the
-  container — apply them with the Supabase CLI as described in the
-  README.
-- Received attachments are copied into the `chat-media` Supabase
-  Storage bucket, because Meta deletes media roughly 30 days after it
-  arrives and the copy is the only thing that outlives that. It grows
-  with inbound volume, so it's worth watching your project's storage
-  quota. Turn it off per account under Settings → WhatsApp →
-  Attachment Storage; attachments received while it's off become
-  unviewable once Meta drops them. Files over 16 MB (the bucket's
-  limit) are never copied.
-- Nothing inside the container is scheduled. If you use automation
-  Wait steps or flows, point an external scheduler at
-  `GET /api/automations/cron` and `GET /api/flows/cron` on this
-  deployment, sending the shared secret in the `x-cron-secret` header
-  (`AUTOMATION_CRON_SECRET`, see `.env.local.example`). Both return
-  503 until that variable is set.
+- As migrações de `supabase/migrations/` não são executadas pelo contêiner.
+  Aplique-as ao seu projeto Supabase antes de usar o aplicativo.
+- Os anexos recebidos são copiados para o armazenamento `chat-media` do Supabase.
+  Isso permite mantê-los após a remoção da mídia pela Meta. Acompanhe a cota de
+  armazenamento do projeto. Você pode desativar a cópia em Configurações →
+  WhatsApp → Armazenamento de anexos. Arquivos recebidos sem cópia deixam de estar
+  disponíveis quando a Meta remove a mídia. Arquivos acima de 16 MB não são copiados.
+- O contêiner não executa agendamentos internos. Para etapas de espera de
+  automações e fluxos, configure um agendador externo para chamar
+  `GET /api/automations/cron` e `GET /api/flows/cron`. Envie o segredo de
+  `AUTOMATION_CRON_SECRET` no cabeçalho `x-cron-secret`.
+  Esses endpoints retornam 503 enquanto a variável não estiver configurada.

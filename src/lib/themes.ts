@@ -69,32 +69,32 @@ export interface ThemeMeta {
 export const THEMES: ReadonlyArray<ThemeMeta> = [
   {
     id: "violet",
-    name: "Violet",
-    tagline: "The default — confident, slightly playful.",
+    name: "Violeta",
+    tagline: "O tema padrão, marcante e descontraído.",
     swatch: "oklch(0.526 0.247 293)",
   },
   {
     id: "emerald",
-    name: "Emerald",
-    tagline: "Growth-coded, nods at messaging without copying WhatsApp green.",
+    name: "Esmeralda",
+    tagline: "Verde suave, inspirado na comunicação e no crescimento.",
     swatch: "oklch(0.62 0.16 162)",
   },
   {
     id: "cobalt",
-    name: "Cobalt",
-    tagline: "Clean B2B-SaaS blue — calm and product-y.",
+    name: "Azul-cobalto",
+    tagline: "Azul discreto, ideal para um ambiente profissional.",
     swatch: "oklch(0.585 0.2 254)",
   },
   {
     id: "amber",
-    name: "Amber",
-    tagline: "Warm and friendly — feels good for SMB teams.",
+    name: "Âmbar",
+    tagline: "Uma cor acolhedora para o dia a dia da equipe.",
     swatch: "oklch(0.745 0.16 65)",
   },
   {
     id: "rose",
-    name: "Rose",
-    tagline: "Bold and modern — D2C, creator-economy, lifestyle.",
+    name: "Rosa",
+    tagline: "Uma cor vibrante para uma aparência moderna.",
     swatch: "oklch(0.645 0.22 16)",
   },
 ];

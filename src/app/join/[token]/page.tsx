@@ -22,6 +22,7 @@
 // this page after email verification.
 // ============================================================
 
+import { APP_LOCALE } from "@/i18n/locale";
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -33,10 +34,10 @@ import {
   Loader2,
   MailX,
   ShieldCheck,
-  UsersRound,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { BrandLogo } from '@/components/brand-logo';
 import {
   Card,
   CardContent,
@@ -282,9 +283,7 @@ export default function JoinPage() {
   // ----- Peek OK -----
   const inviteHeader = (
     <CardHeader className="items-center text-center">
-      <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-        <UsersRound className="h-6 w-6 text-primary" />
-      </div>
+      <BrandLogo size="lg" className="mb-2" />
       <CardTitle className="text-xl text-foreground">
         {t.rich('invitedTo', {
           name: peek.account_name,
@@ -294,7 +293,7 @@ export default function JoinPage() {
       <CardDescription className="text-muted-foreground">
         {t.rich('joinAs', {
           role: tRoles(peek.role),
-          date: new Date(peek.expires_at).toLocaleDateString(undefined, {
+          date: new Date(peek.expires_at).toLocaleDateString(APP_LOCALE, {
             year: 'numeric',
             month: 'short',
             day: 'numeric',

@@ -33,9 +33,9 @@ export async function GET(
 
     if (error) {
       console.error('[api/v1/webhooks] read error:', error);
-      return fail('internal', 'Failed to read webhook', 500);
+      return fail('internal', "Não foi possível consultar o webhook", 500);
     }
-    if (!data) return fail('not_found', 'Webhook not found', 404);
+    if (!data) return fail('not_found', "O webhook não encontrado", 404);
 
     return ok(serializeWebhookEndpoint(data as Record<string, unknown>));
   } catch (err) {
@@ -56,7 +56,7 @@ export async function PATCH(
       unknown
     > | null;
     if (!body || typeof body !== 'object') {
-      return fail('bad_request', 'Request body must be a JSON object', 400);
+      return fail('bad_request', "O corpo da solicitação deve ser um objeto JSON", 400);
     }
 
     const updates: Record<string, unknown> = {};
@@ -64,7 +64,7 @@ export async function PATCH(
     if ('url' in body) {
       const url = normalizeWebhookUrl(body.url);
       if (!url) {
-        return fail('bad_request', "'url' must be a valid https:// URL", 400);
+        return fail('bad_request', "O campo 'url' deve ser uma URL https:// válida", 400);
       }
       updates.url = url;
     }
@@ -74,7 +74,7 @@ export async function PATCH(
       if (!events) {
         return fail(
           'bad_request',
-          "'events' must be a non-empty array of known event names",
+          "O campo 'events' deve ser uma lista não vazia de eventos válidos",
           400
         );
       }
@@ -83,7 +83,7 @@ export async function PATCH(
 
     if ('is_active' in body) {
       if (typeof body.is_active !== 'boolean') {
-        return fail('bad_request', "'is_active' must be a boolean", 400);
+        return fail('bad_request', "O campo 'is_active' deve ser um booleano", 400);
       }
       updates.is_active = body.is_active;
       // Re-enabling a disabled endpoint clears its failure streak so it
@@ -92,7 +92,7 @@ export async function PATCH(
     }
 
     if (Object.keys(updates).length === 0) {
-      return fail('bad_request', 'No updatable fields provided', 400);
+      return fail('bad_request', "Nenhum campo informado para atualização", 400);
     }
 
     // Scope the update by account_id so a foreign id touches nothing;
@@ -107,9 +107,9 @@ export async function PATCH(
 
     if (error) {
       console.error('[api/v1/webhooks] update error:', error);
-      return fail('internal', 'Failed to update webhook', 500);
+      return fail('internal', "Não foi possível atualizar o webhook", 500);
     }
-    if (!data) return fail('not_found', 'Webhook not found', 404);
+    if (!data) return fail('not_found', "O webhook não encontrado", 404);
 
     return ok(serializeWebhookEndpoint(data as Record<string, unknown>));
   } catch (err) {
@@ -135,9 +135,9 @@ export async function DELETE(
 
     if (error) {
       console.error('[api/v1/webhooks] delete error:', error);
-      return fail('internal', 'Failed to delete webhook', 500);
+      return fail('internal', "Não foi possível excluir o webhook", 500);
     }
-    if (!data) return fail('not_found', 'Webhook not found', 404);
+    if (!data) return fail('not_found', "O webhook não encontrado", 404);
 
     return ok({ id: data.id, deleted: true });
   } catch (err) {

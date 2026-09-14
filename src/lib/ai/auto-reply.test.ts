@@ -242,7 +242,7 @@ describe('dispatchInboundToAiReply — typing indicator (#527)', () => {
   it('still sends the reply when the WhatsApp credentials cannot be loaded', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     h.loadAccountMetaCredentials.mockRejectedValue(
-      new Error('WhatsApp not configured for this account'),
+      new Error("O WhatsApp não está configurado para esta conta"),
     )
     await dispatchInboundToAiReply(ARGS)
     expect(h.sendTypingIndicator).not.toHaveBeenCalled()
@@ -275,7 +275,7 @@ describe('dispatchInboundToAiReply — handoff', () => {
     expect(h.state.rpcCalls).toHaveLength(0)
     expect(h.state.updatePayload).toMatchObject({ ai_autoreply_disabled: true })
     expect(h.state.updatePayload?.ai_handoff_summary).toContain(
-      'AI agent handed off',
+      "IA encaminhou ao atendimento",
     )
     // No handoff target configured → conversation left unassigned.
     expect(h.state.updatePayload).not.toHaveProperty('assigned_agent_id')

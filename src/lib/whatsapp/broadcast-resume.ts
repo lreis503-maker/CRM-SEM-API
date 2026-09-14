@@ -152,7 +152,7 @@ export async function planBroadcastResume(
     .maybeSingle();
 
   if (bcError || !broadcast) {
-    throw new BroadcastError('not_found', 'Broadcast not found', 404);
+    throw new BroadcastError('not_found', "O disparo não encontrado", 404);
   }
 
   const statuses = scopeStatuses(scope);
@@ -199,8 +199,8 @@ export async function planBroadcastResume(
     throw new BroadcastError(
       'nothing_to_resume',
       scope === 'failed'
-        ? 'This broadcast has no failed recipients to retry'
-        : 'This broadcast has no recipients left to send',
+        ? 'Este disparo não tem destinatários com falha para tentar novamente'
+        : 'Este disparo não tem destinatários pendentes de envio',
       400
     );
   }
@@ -213,7 +213,7 @@ export async function planBroadcastResume(
   if (configError || !config) {
     throw new BroadcastError(
       'whatsapp_not_configured',
-      'WhatsApp not configured. Please set up your WhatsApp integration first.',
+      "O WhatsApp não está configurado. Configure a integração com o WhatsApp primeiro.",
       400
     );
   }

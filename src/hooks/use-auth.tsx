@@ -289,17 +289,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // failure as a WARNING) or one predating that migration.
           // Every insert and update they attempt will be denied by RLS.
           setStatusDetail(
-            `profile ${data.id} has no ${!data.account_id ? "account_id" : "account_role"}`,
+            `O perfil ${data.id} não possui ${!data.account_id ? "account_id" : "account_role"}`,
           );
         }
       } else {
         lastFetchedUserIdRef.current = null;
-        setStatusDetail("no profiles row for the signed-in user");
+        setStatusDetail("Não foi encontrado um perfil para o usuário conectado");
       }
     } catch (err) {
       console.error("[AuthProvider] fetchProfile threw:", err);
       lastFetchedUserIdRef.current = null;
-      setStatusDetail(err instanceof Error ? err.message : "profile fetch failed");
+      setStatusDetail(err instanceof Error ? err.message : "Não foi possível carregar o perfil");
     } finally {
       setProfileLoading(false);
     }

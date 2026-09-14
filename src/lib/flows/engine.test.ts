@@ -489,7 +489,7 @@ function nodesEndingIn(next: "choose" | "pick") {
       node_key: "ask_name",
       node_type: "collect_input",
       config: {
-        prompt_text: "What's your name?",
+        prompt_text: "Qual é o seu nome?",
         var_key: "name",
         next_node_key: next,
       },

@@ -25,6 +25,14 @@ describe('parseTagCell', () => {
 });
 
 describe('parseContactCsv', () => {
+  it('aceita cabeçalhos em português sem alterar o formato dos dados', () => {
+    const result = parseContactCsv('Telefone,Nome,E-mail,Empresa,Etiquetas\n+5511999999999,Ana,ana@exemplo.com,Exemplo,"VIP, Cliente"');
+    expect(result).toEqual({
+      hasPhoneColumn: true, hasTagsColumn: true, hasCompanyColumn: true,
+      rows: [{ phone: '+5511999999999', name: 'Ana', email: 'ana@exemplo.com', company: 'Exemplo', tagNames: ['VIP', 'Cliente'] }],
+    });
+  });
+
   it('parses optional tags column', () => {
     const csv = `phone,name,tags
 +15551234567,Alice,"VIP, Lead"

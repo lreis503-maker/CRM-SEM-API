@@ -92,7 +92,7 @@ describe('submitMessageTemplate', () => {
           components: [],
         },
       }),
-    ).rejects.toThrow(/no id/);
+    ).rejects.toThrow(/não retornou um ID/);
   });
 });
 

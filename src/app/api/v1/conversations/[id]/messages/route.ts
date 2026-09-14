@@ -32,7 +32,7 @@ export async function GET(
       .eq('id', id)
       .eq('account_id', ctx.accountId)
       .maybeSingle();
-    if (!conv) return fail('not_found', 'Conversation not found', 404);
+    if (!conv) return fail('not_found', "Conversa não encontrada", 404);
 
     let query = ctx.supabase
       .from('messages')
@@ -48,7 +48,7 @@ export async function GET(
     const { data, error } = await query;
     if (error) {
       console.error('[api/v1/messages] list error:', error);
-      return fail('internal', 'Failed to list messages', 500);
+      return fail('internal', "Não foi possível listar as mensagens", 500);
     }
 
     const { items, nextCursor } = buildPage(

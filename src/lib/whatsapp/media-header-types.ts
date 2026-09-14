@@ -29,13 +29,13 @@ export const MEDIA_HEADER_SPECS: Readonly<Record<MediaHeaderKind, MediaHeaderSpe
     mimeTypes: ['image/jpeg', 'image/png'],
     extensions: { 'image/jpeg': 'jpg', 'image/png': 'png' },
     maxBytes: 5 * MB,
-    formats: 'JPEG or PNG',
+    formats: 'JPEG ou PNG',
   },
   video: {
     mimeTypes: ['video/mp4', 'video/3gpp'],
     extensions: { 'video/mp4': 'mp4', 'video/3gpp': '3gp' },
     maxBytes: 16 * MB,
-    formats: 'MP4 or 3GPP',
+    formats: 'MP4 ou 3GPP',
   },
   document: {
     mimeTypes: [
@@ -59,7 +59,7 @@ export const MEDIA_HEADER_SPECS: Readonly<Record<MediaHeaderKind, MediaHeaderSpe
       'text/plain': 'txt',
     },
     maxBytes: 100 * MB,
-    formats: 'PDF, Word, PowerPoint, Excel or plain text',
+    formats: 'PDF, Word, PowerPoint, Excel ou texto simples',
   },
 }
 

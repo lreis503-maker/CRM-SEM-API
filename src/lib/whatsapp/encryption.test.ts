@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { decrypt, encrypt, isLegacyFormat } from "./encryption";
 
 const KEY_HEX = process.env.ENCRYPTION_KEY!;
@@ -17,6 +17,42 @@ function cbcEncryptLegacy(plaintext: string): string {
 }
 
 describe("encryption", () => {
+  describe("validação da chave de ambiente", () => {
+    afterEach(() => vi.unstubAllEnvs());
+
+    it.each([
+      undefined,
+      "",
+      "your-64-char-hex-key-here",
+      "a".repeat(63),
+      "a".repeat(65),
+      "g".repeat(64),
+      "a".repeat(62) + "zz",
+    ])("rejeita uma chave inválida antes de criptografar: %s", (key) => {
+      vi.stubEnv("ENCRYPTION_KEY", key);
+      expect(() => encrypt("token de teste")).toThrow(/64 caracteres hexadecimais/);
+    });
+
+    it("rejeita uma chave inválida antes de descriptografar", () => {
+      const encrypted = encrypt("token de teste");
+      vi.stubEnv("ENCRYPTION_KEY", "invalid");
+      expect(() => decrypt(encrypted)).toThrow(/64 caracteres hexadecimais/);
+    });
+
+    it("lê a chave atualizada sem precisar recarregar o módulo", () => {
+      vi.stubEnv("ENCRYPTION_KEY", "invalid");
+      expect(() => encrypt("token de teste")).toThrow();
+      vi.stubEnv("ENCRYPTION_KEY", KEY_HEX.toUpperCase());
+      expect(decrypt(encrypt("token de teste"))).toBe("token de teste");
+    });
+
+    it("rejeita um token quando a chave válida usada para leitura é diferente", () => {
+      const encrypted = encrypt("token de teste");
+      vi.stubEnv("ENCRYPTION_KEY", "ff".repeat(32));
+      expect(() => decrypt(encrypted)).toThrow();
+    });
+  });
+
   describe("encrypt / decrypt round-trip", () => {
     it("recovers the original plaintext", () => {
       const ct = encrypt("EAAG... fake WhatsApp token");

@@ -70,6 +70,7 @@ export function PipelineSettings({
   onCreateNewPipeline,
 }: PipelineSettingsProps) {
   const t = useTranslations("Pipelines.settings");
+  const tCommon = useTranslations("Common");
   const supabase = createClient();
 
   const [name, setName] = useState(pipeline.name);
@@ -298,7 +299,7 @@ export function PipelineSettings({
                             ? "var(--foreground)"
                             : "transparent",
                       }}
-                      aria-label={`Pick color ${color}`}
+                      aria-label={tCommon("pickColor", { color })}
                     />
                   ))}
                 </div>

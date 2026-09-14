@@ -29,7 +29,7 @@ function normalizeForAnthropic(messages: ChatMessage[]): ChatMessage[] {
     merged.shift()
   }
   if (merged.length === 0) {
-    return [{ role: 'user', content: '(The customer has not sent a message yet.)' }]
+    return [{ role: 'user', content: "(O cliente ainda não enviou uma mensagem.)" }]
   }
   return merged
 }
@@ -74,7 +74,7 @@ export async function generateAnthropic(args: ProviderArgs): Promise<ProviderRes
     .join('')
     .trim()
   if (!text) {
-    throw new AiError('Anthropic returned an empty response.', {
+    throw new AiError("A Anthropic retornou uma resposta vazia.", {
       code: 'empty_response',
     })
   }

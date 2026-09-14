@@ -105,14 +105,14 @@ export async function POST(request: Request) {
     try {
       payload = (await request.json()) as TemplatePayload
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
+      return NextResponse.json({ error: "Corpo JSON inválido." }, { status: 400 })
     }
 
     if (payload.category === 'Authentication') {
       return NextResponse.json(
         {
           error:
-            'AUTHENTICATION templates are not yet supported here — create them in Meta WhatsApp Manager and use "Sync from Meta".',
+            "Modelos de autenticação ainda não são suportados aqui. Crie-os no Gerenciador do WhatsApp da Meta e use \"Sincronizar com a Meta\".",
         },
         { status: 400 },
       )
@@ -122,7 +122,7 @@ export async function POST(request: Request) {
       validateTemplatePayload(payload)
     } catch (e) {
       return NextResponse.json(
-        { error: e instanceof Error ? e.message : 'Validation failed.' },
+        { error: e instanceof Error ? e.message : "Falha na validação." },
         { status: 400 },
       )
     }
@@ -147,7 +147,7 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             error:
-              'WhatsApp not configured. Connect your WhatsApp Business account in Settings first.',
+              "O WhatsApp não está configurado. Conecte sua conta do WhatsApp Business em Configurações primeiro.",
           },
           { status: 400 },
         )
@@ -156,7 +156,7 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             error:
-              'WABA (WhatsApp Business Account) ID missing. Re-connect your account in Settings.',
+              "O ID da conta do WhatsApp Business está ausente. Reconecte sua conta em Configurações.",
           },
           { status: 400 },
         )
@@ -173,7 +173,7 @@ export async function POST(request: Request) {
         await ensureMediaHeaderHandle(payload, accessToken)
       } catch (e) {
         return NextResponse.json(
-          { error: e instanceof Error ? e.message : 'Header media upload failed.' },
+          { error: e instanceof Error ? e.message : "Falha ao enviar a mídia do cabeçalho." },
           { status: 400 },
         )
       }
@@ -188,7 +188,7 @@ export async function POST(request: Request) {
         metaTemplateId = meta.id
         metaStatus = meta.status
       } catch (e) {
-        const message = e instanceof Error ? e.message : 'Meta submit failed.'
+        const message = e instanceof Error ? e.message : "Falha ao enviar para a Meta."
         // Persist the failure so the user can retry; row stays DRAFT
         // until they fix and re-submit.
         await upsertTemplateRow(
@@ -203,7 +203,7 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             error: isRateLimit
-              ? 'Meta rate limit hit (100 template creates per hour). Try again later.'
+              ? "Limite da Meta atingido: 100 criações de modelos por hora. Tente novamente mais tarde."
               : message,
           },
           { status: isRateLimit ? 429 : 502 },
@@ -226,7 +226,7 @@ export async function POST(request: Request) {
       // so the user can recover via "Sync from Meta".
       return NextResponse.json(
         {
-          error: `Submitted to Meta but failed to save locally: ${upsertErr.message}. Run "Sync from Meta" to recover.`,
+          error: `Enviado para a Meta, mas não foi possível salvar localmente: ${upsertErr.message}. Use "Sincronizar com a Meta" para recuperar.`,
           meta_template_id: metaTemplateId,
         },
         { status: 500 },
@@ -253,7 +253,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : 'Failed to submit template.',
+          error instanceof Error ? error.message : "Não foi possível enviar o modelo.",
       },
       { status: 500 },
     )

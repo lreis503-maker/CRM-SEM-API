@@ -1,5 +1,7 @@
 "use client";
 
+import { APP_LOCALE } from "@/i18n/locale";
+import { APP_DATE_LOCALE } from "@/i18n/date-locale";
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -237,7 +239,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                     <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
                       <span>
                         {deal.currency ?? "$"}
-                        {deal.value.toLocaleString()}
+                        {deal.value.toLocaleString(APP_LOCALE)}
                       </span>
                       {deal.stage && (
                         <span
@@ -295,7 +297,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                       {note.note_text}
                     </p>
                     <p className="mt-1 text-[10px] text-muted-foreground">
-                      {format(new Date(note.created_at), "MMM d, yyyy HH:mm")}
+                      {format(new Date(note.created_at), "dd/MM/yyyy HH:mm", { locale: APP_DATE_LOCALE })}
                     </p>
                   </div>
                 ))}

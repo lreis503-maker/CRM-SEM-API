@@ -74,7 +74,7 @@ export async function GET(request: Request) {
     const { data, error } = await query;
     if (error) {
       console.error('[api/v1/contacts] list error:', error);
-      return fail('internal', 'Failed to list contacts', 500);
+      return fail('internal', "Não foi possível listar os contatos", 500);
     }
 
     // Cast via unknown: the conditional `selectClause` (with the
@@ -102,12 +102,12 @@ export async function POST(request: Request) {
       unknown
     > | null;
     if (!body || typeof body !== 'object') {
-      return fail('bad_request', 'Request body must be a JSON object', 400);
+      return fail('bad_request', "O corpo da solicitação deve ser um objeto JSON", 400);
     }
 
     const phone = typeof body.phone === 'string' ? body.phone.trim() : '';
     if (!phone) {
-      return fail('bad_request', "'phone' is required", 400);
+      return fail('bad_request', "O campo 'phone' é obrigatório", 400);
     }
 
     const auditUserId = await resolveAuditUserId(ctx.supabase, ctx.accountId);

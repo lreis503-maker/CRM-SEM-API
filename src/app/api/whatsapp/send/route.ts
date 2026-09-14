@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            'Either conversation_id or contact_id, plus message_type, are required',
+            "Informe conversation_id ou contact_id, além de message_type",
         },
         { status: 400 }
       )
@@ -104,7 +104,7 @@ export async function POST(request: Request) {
 
       if (convError || !data) {
         return NextResponse.json(
-          { error: 'Conversation not found' },
+          { error: "Conversa não encontrada" },
           { status: 404 }
         )
       }
@@ -121,7 +121,7 @@ export async function POST(request: Request) {
 
       if (contactErr || !contactRow) {
         return NextResponse.json(
-          { error: 'Contact not found' },
+          { error: "O contato não encontrado" },
           { status: 404 }
         )
       }
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
       )
       if (!resolved) {
         return NextResponse.json(
-          { error: 'Failed to open a conversation for this contact' },
+          { error: "Não foi possível abrir uma conversa para este contato" },
           { status: 500 }
         )
       }
@@ -143,7 +143,7 @@ export async function POST(request: Request) {
 
     if (!conversationId) {
       return NextResponse.json(
-        { error: 'Conversation not found' },
+        { error: "Conversa não encontrada" },
         { status: 404 }
       )
     }

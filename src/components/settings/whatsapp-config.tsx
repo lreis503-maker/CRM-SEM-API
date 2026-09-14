@@ -1,5 +1,6 @@
 'use client';
 
+import { APP_LOCALE } from "@/i18n/locale";
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import {
@@ -90,6 +91,7 @@ export function WhatsAppConfig() {
   const [statusMeta, setStatusMeta] = useState<MetaErrorMeta | null>(null);
   const [saveFailure, setSaveFailure] = useState<MetaFailure | null>(null);
   const [wabaSubscription, setWabaSubscription] = useState<WabaSubscription | null>(null);
+  const [webhookSecurity, setWebhookSecurity] = useState<{ configured: boolean } | null>(null);
   // Guards against re-hydrating the form when the load effect below
   // re-runs for reasons unrelated to actually switching accounts —
   // e.g. Supabase's onAuthStateChange fires a token refresh (new
@@ -187,6 +189,7 @@ export function WhatsAppConfig() {
         try {
           const res = await fetch('/api/whatsapp/config', { method: 'GET' });
           const payload = await res.json();
+          setWebhookSecurity(payload.webhook_security ?? null);
 
           if (payload.connected) {
             setConnectionStatus('connected');
@@ -337,7 +340,7 @@ export function WhatsAppConfig() {
       //                         is human-readable from Meta.
       if (data.registered === false && data.registration_error) {
         setSaveFailure({
-          message: `Saved, but Meta couldn't register the number: ${data.registration_error}`,
+          message: `Configuração salva, mas a Meta não conseguiu registrar o número: ${data.registration_error}`,
           meta: data.meta ?? null,
         });
         toast.error(
@@ -380,6 +383,7 @@ export function WhatsAppConfig() {
       setTesting(true);
       const res = await fetch('/api/whatsapp/config', { method: 'GET' });
       const payload = await res.json();
+      setWebhookSecurity(payload.webhook_security ?? null);
 
       if (payload.connected) {
         setConnectionStatus('connected');
@@ -585,6 +589,20 @@ export function WhatsAppConfig() {
           </Alert>
         )}
 
+        {webhookSecurity?.configured === false && (
+          <Alert className="border-destructive/40 bg-destructive/5">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" />
+              <div>
+                <AlertTitle className="mb-1 text-foreground">{t('webhookUnavailable')}</AlertTitle>
+                <AlertDescription className="text-sm text-muted-foreground">
+                  {t('webhookSecretMissing')}
+                </AlertDescription>
+              </div>
+            </div>
+          </Alert>
+        )}
+
         {/* Connection Status */}
         <Alert className="bg-card border-border">
           <div className="flex items-center gap-2">
@@ -673,7 +691,7 @@ export function WhatsAppConfig() {
                   dangerouslySetInnerHTML={{
                     __html: t('subscribedSince', {
                       date: config.registered_at
-                        ? new Date(config.registered_at).toLocaleString()
+                        ? new Date(config.registered_at).toLocaleString(APP_LOCALE)
                         : t('unknownDate'),
                     }),
                   }}

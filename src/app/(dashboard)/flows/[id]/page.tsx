@@ -42,7 +42,7 @@ export default function FlowEditorPage() {
           if (!cancelled) setNotFound(true);
           return;
         }
-        if (!res.ok) throw new Error(`Failed: ${res.status}`);
+        if (!res.ok) throw new Error(`Falha: ${res.status}`);
         const json = (await res.json()) as {
           flow: FlowRow;
           nodes: FlowNodeRow[];

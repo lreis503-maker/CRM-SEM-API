@@ -104,7 +104,7 @@ describe('ensureMediaHeaderHandle', () => {
       vi.stubEnv('META_APP_ID', 'app-1');
       vi.stubGlobal('fetch', vi.fn(async () => mediaResponse('text/html')));
       await expect(ensureMediaHeaderHandle(payload(), 'tok')).rejects.toThrow(
-        /Header image must be JPEG or PNG/,
+        /A mídia do cabeçalho deve ser JPEG ou PNG/,
       );
     });
 
@@ -161,7 +161,7 @@ describe('ensureMediaHeaderHandle', () => {
       vi.stubEnv('META_APP_ID', 'app-1');
       vi.stubGlobal('fetch', vi.fn(async () => mediaResponse('image/jpeg')));
       await expect(ensureMediaHeaderHandle(doc(), 'tok')).rejects.toThrow(
-        /Header document must be PDF, Word, PowerPoint, Excel or plain text \(got image\/jpeg\)/,
+        /A mídia do cabeçalho deve ser PDF, Word, PowerPoint, Excel ou texto simples \(recebido: image\/jpeg\)/,
       );
       expect(uploadResumableMedia).not.toHaveBeenCalled();
     });
@@ -177,7 +177,7 @@ describe('ensureMediaHeaderHandle', () => {
       vi.stubEnv('META_APP_ID', 'app-1');
       vi.stubGlobal('fetch', vi.fn(async () => mediaResponse('application/pdf', 101 * MB)));
       await expect(ensureMediaHeaderHandle(doc(), 'tok')).rejects.toThrow(
-        /Header document is 101\.0 MB — Meta's limit is 100 MB/,
+        /arquivo do cabeçalho tem 101\.0 MB\. O limite da Meta é 100 MB/,
       );
       expect(uploadResumableMedia).not.toHaveBeenCalled();
     });
@@ -208,7 +208,7 @@ describe('ensureMediaHeaderHandle', () => {
       vi.stubEnv('META_APP_ID', 'app-1');
       vi.stubGlobal('fetch', vi.fn(async () => mediaResponse('video/quicktime')));
       await expect(ensureMediaHeaderHandle(video(), 'tok')).rejects.toThrow(
-        /Header video must be MP4 or 3GPP \(got video\/quicktime\)/,
+        /A mídia do cabeçalho deve ser MP4 ou 3GPP \(recebido: video\/quicktime\)/,
       );
     });
 
@@ -232,7 +232,7 @@ describe('ensureMediaHeaderHandle', () => {
     vi.stubGlobal('fetch', fetchSpy);
 
     const p = payload({ header_media_url: 'http://169.254.169.254/latest/meta-data/' });
-    await expect(ensureMediaHeaderHandle(p, 'tok')).rejects.toThrow(/publicly reachable/);
+    await expect(ensureMediaHeaderHandle(p, 'tok')).rejects.toThrow(/acessível publicamente/);
 
     expect(isDeliverableUrl).toHaveBeenCalledWith('http://169.254.169.254/latest/meta-data/');
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -248,7 +248,7 @@ describe('ensureMediaHeaderHandle', () => {
 
     for (const header_type of ['document', 'video'] as const) {
       const p = payload({ header_type, header_media_url: 'http://10.0.0.5/internal.pdf' });
-      await expect(ensureMediaHeaderHandle(p, 'tok')).rejects.toThrow(/publicly reachable/);
+      await expect(ensureMediaHeaderHandle(p, 'tok')).rejects.toThrow(/acessível publicamente/);
     }
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(uploadResumableMedia).not.toHaveBeenCalled();

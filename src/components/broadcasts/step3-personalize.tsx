@@ -156,7 +156,7 @@ export function Step3Personalize({
   const headerMediaError = useMemo<'missing' | 'invalid' | null>(() => {
     if (!mediaHeaderType) return null;
     const value = headerMediaUrl.trim();
-    if (!value) return 'missing';
+    if (!value) return "missing";
     if (!isValidHttpUrl(value)) return 'invalid';
     return null;
   }, [mediaHeaderType, headerMediaUrl]);

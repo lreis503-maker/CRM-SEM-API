@@ -1,5 +1,6 @@
 "use client";
 
+import { APP_DATE_LOCALE } from "@/i18n/date-locale";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -445,7 +446,7 @@ function ConversationItem({
   }, [onSelect, conversation]);
 
   const timeAgo = conversation.last_message_at
-    ? formatDistanceToNow(new Date(conversation.last_message_at), {
+    ? formatDistanceToNow(new Date(conversation.last_message_at), { locale: APP_DATE_LOCALE,
         addSuffix: false,
       })
     : "";

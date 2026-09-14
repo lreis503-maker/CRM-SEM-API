@@ -78,7 +78,7 @@ describe("rateLimitResponse", () => {
     expect(res.headers.get("X-RateLimit-Remaining")).toBe("0");
     expect(Number(res.headers.get("Retry-After"))).toBeGreaterThan(0);
     const body = (await res.json()) as { error: string };
-    expect(body.error).toMatch(/rate limit/i);
+    expect(body.error).toMatch(/limite de solicitações/i);
   });
 
   it("clamps Retry-After to a minimum of 1 second", () => {

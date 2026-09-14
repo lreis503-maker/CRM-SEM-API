@@ -1,5 +1,6 @@
 "use client";
 
+import { APP_DATE_LOCALE } from "@/i18n/date-locale";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -112,7 +113,7 @@ function formatDateSeparator(dateStr: string, t: ReturnType<typeof useTranslatio
   const date = new Date(dateStr);
   if (isToday(date)) return t("today");
   if (isYesterday(date)) return t("yesterday");
-  return format(date, "MMMM d, yyyy");
+  return format(date, "d 'de' MMMM 'de' yyyy", { locale: APP_DATE_LOCALE });
 }
 
 function groupMessagesByDate(messages: Message[]) {
@@ -120,7 +121,7 @@ function groupMessagesByDate(messages: Message[]) {
   let currentDate = "";
 
   for (const msg of messages) {
-    const day = format(new Date(msg.created_at), "yyyy-MM-dd");
+    const day = format(new Date(msg.created_at), "yyyy-MM-dd", { locale: APP_DATE_LOCALE });
     if (day !== currentDate) {
       currentDate = day;
       groups.push({ date: msg.created_at, messages: [msg] });
@@ -513,7 +514,7 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: "sent" });
       } catch (err) {
         console.error("Failed to send message:", err);
-        const reason = err instanceof Error ? err.message : "network error";
+        const reason = err instanceof Error ? err.message : "erro de rede";
         toast.error(t("sendFailed", { reason }));
         onUpdateMessage(tempId, { status: "failed" });
       }
@@ -578,7 +579,7 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: "sent" });
       } catch (err) {
         console.error("Failed to send media:", err);
-        const reason = err instanceof Error ? err.message : "network error";
+        const reason = err instanceof Error ? err.message : "erro de rede";
         toast.error(t("sendFailed", { reason }));
         onUpdateMessage(tempId, { status: "failed" });
         void deleteAccountMedia(CHAT_MEDIA_BUCKET, payload.path).catch(() => {});
@@ -632,7 +633,7 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: "sent" });
       } catch (err) {
         console.error("Failed to send interactive message:", err);
-        const reason = err instanceof Error ? err.message : "network error";
+        const reason = err instanceof Error ? err.message : "erro de rede";
         toast.error(t("sendFailed", { reason }));
         onUpdateMessage(tempId, { status: "failed" });
       }
@@ -721,7 +722,7 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: "sent" });
       } catch (err) {
         console.error("Failed to send template:", err);
-        const reason = err instanceof Error ? err.message : "network error";
+        const reason = err instanceof Error ? err.message : "erro de rede";
         toast.error(t("sendTemplateFailed", { reason }));
         onUpdateMessage(tempId, { status: "failed" });
       }
@@ -833,7 +834,7 @@ export function MessageThread({
           throw new Error(payload?.error || `HTTP ${res.status}`);
         }
       } catch (err) {
-        const reason = err instanceof Error ? err.message : "network error";
+        const reason = err instanceof Error ? err.message : "erro de rede";
         toast.error(t("reactionFailed", { reason }));
         setReactions(snapshot);
       }

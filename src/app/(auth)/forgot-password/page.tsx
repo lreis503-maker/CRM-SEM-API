@@ -1,5 +1,6 @@
 "use client";
 
+import { translateAuthError } from "@/i18n/auth-errors";
 import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -14,7 +15,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MessageSquare, CheckCircle, ArrowLeft } from "lucide-react";
+import { CheckCircle, ArrowLeft } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 
 export default function ForgotPasswordPage() {
   const t = useTranslations("ForgotPasswordPage");
@@ -34,7 +36,7 @@ export default function ForgotPasswordPage() {
     });
 
     if (error) {
-      setError(error.message);
+      setError(translateAuthError(error));
       setLoading(false);
       return;
     }
@@ -82,9 +84,7 @@ export default function ForgotPasswordPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md border-border bg-card">
         <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <MessageSquare className="h-6 w-6 text-primary" />
-          </div>
+          <BrandLogo size="lg" className="mb-2" />
           <CardTitle className="text-xl text-foreground">{t("title")}</CardTitle>
           <CardDescription className="text-muted-foreground">
             {t("desc")}

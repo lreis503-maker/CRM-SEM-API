@@ -335,13 +335,13 @@ export function summarizeNode(
       }, 0);
       if (text.length > 0) {
         return rowCount > 0
-          ? `${truncate(text, 50)} · ${t ? t('options', { count: rowCount }) : `${rowCount} option${rowCount === 1 ? '' : 's'}`}`
+          ? `${truncate(text, 50)} · ${t ? t('options', { count: rowCount }) : `${rowCount} ${rowCount === 1 ? "opção" : "opções"}`}`
           : truncate(text);
       }
       return rowCount > 0
         ? t
           ? t('optionsAcrossSections', { rowCount, sectionCount: sections.length })
-          : `${rowCount} option${rowCount === 1 ? '' : 's'} across ${sections.length} section${sections.length === 1 ? '' : 's'}`
+          : `${rowCount} ${rowCount === 1 ? "opção" : "opções"} em ${sections.length} ${sections.length === 1 ? "seção" : "seções"}`
         : null;
     }
     case 'send_media': {
@@ -351,10 +351,10 @@ export function summarizeNode(
       const url = typeof cfg.media_url === 'string' ? cfg.media_url : '';
       const caption = typeof cfg.caption === 'string' ? cfg.caption : '';
       const label = mediaType
-        ? t ? t(mediaType) || (mediaType.charAt(0).toUpperCase() + mediaType.slice(1)) : mediaType.charAt(0).toUpperCase() + mediaType.slice(1)
-        : t ? t('media') : 'Media';
-      if (!url) return t ? t('noFile', { label }) : `${label} (no file uploaded)`;
-      const name = filename || url.split('/').pop() || 'file';
+        ? t ? t(mediaType) || (({ image: "Imagem", video: "Vídeo", document: "Documento" }[mediaType] ?? mediaType)) : ({ image: "Imagem", video: "Vídeo", document: "Documento" }[mediaType] ?? mediaType)
+        : t ? t('media') : "Mídia";
+      if (!url) return t ? t('noFile', { label }) : `${label} (nenhum arquivo enviado)`;
+      const name = filename || url.split("/").pop() || "arquivo";
       return caption
         ? `${label}: ${truncate(name, 30)} · ${truncate(caption, 40)}`
         : `${label}: ${truncate(name, 60)}`;
@@ -381,17 +381,17 @@ export function summarizeNode(
             : 'var';
       const subjectStr =
         subject === 'tag'
-          ? t ? t('hasTag', { tag: truncate(subjectKey, 24) }) : `has tag ${truncate(subjectKey, 24)}`
+          ? t ? t('hasTag', { tag: truncate(subjectKey, 24) }) : `tem a etiqueta ${truncate(subjectKey, 24)}`
           : `${subject}.${subjectKey}`;
       const op =
         cfg.operator === 'equals'
           ? '=='
           : cfg.operator === 'contains'
-            ? t ? t('opContains') : 'contains'
+            ? t ? t('opContains') : "contém"
             : cfg.operator === 'present'
-              ? t ? t('opExists') : 'exists'
+              ? t ? t('opExists') : "existe"
               : cfg.operator === 'absent'
-                ? t ? t('opMissing') : 'missing'
+                ? t ? t('opMissing') : "ausente"
                 : '';
       const value = typeof cfg.value === 'string' ? cfg.value : '';
       const valStr =
@@ -401,14 +401,14 @@ export function summarizeNode(
       return subject === 'tag' ? subjectStr : `${subjectStr} ${op}${valStr}`;
     }
     case 'set_tag': {
-      const mode = cfg.mode === 'remove' ? (t ? t('modeRemove') : 'Remove') : (t ? t('modeAdd') : 'Add');
+      const mode = cfg.mode === 'remove' ? (t ? t('modeRemove') : "Remover") : (t ? t('modeAdd') : "Adicionar");
       const tagId = typeof cfg.tag_id === 'string' ? cfg.tag_id : '';
       // No tag name available without an async lookup here; show a
       // short prefix of the UUID so users can disambiguate between
       // multiple set_tag nodes at a glance.
       return tagId
-        ? t ? t('tagPicked', { mode, tag: tagId.slice(0, 8) }) : `${mode} tag ${tagId.slice(0, 8)}…`
-        : t ? t('tagNone', { mode }) : `${mode} tag (none picked)`;
+        ? t ? t('tagPicked', { mode, tag: tagId.slice(0, 8) }) : `${mode} etiqueta ${tagId.slice(0, 8)}…`
+        : t ? t('tagNone', { mode }) : `${mode} etiqueta (nenhuma selecionada)`;
     }
     case 'handoff': {
       const note = typeof cfg.note === 'string' ? cfg.note : '';

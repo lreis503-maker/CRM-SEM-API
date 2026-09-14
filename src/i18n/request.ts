@@ -1,16 +1,10 @@
 import { getRequestConfig } from 'next-intl/server';
+import { APP_LANGUAGE } from './locale';
 
 export default getRequestConfig(async () => {
-  // Read the locale from the environment, defaulting to 'en'
-  const locale = process.env.NEXT_PUBLIC_APP_LOCALE || 'en';
-
-  let messages;
-  try {
-    messages = (await import(`../../messages/${locale}.json`)).default;
-  } catch (error) {
-    // Fallback to English if the dictionary for the requested locale doesn't exist yet
-    messages = (await import(`../../messages/en.json`)).default;
-  }
+  // Português brasileiro é o padrão, inclusive para valores desconhecidos.
+  const { locale, catalogue } = APP_LANGUAGE;
+  const messages = (await import(`../../messages/${catalogue}.json`)).default;
 
   return {
     locale,

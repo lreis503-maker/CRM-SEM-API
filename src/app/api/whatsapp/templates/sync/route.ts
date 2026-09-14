@@ -145,7 +145,7 @@ export async function POST() {
       return NextResponse.json(
         {
           error:
-            'WhatsApp not configured. Connect your WhatsApp Business account in Settings first.',
+            "O WhatsApp não está configurado. Conecte sua conta do WhatsApp Business em Configurações primeiro.",
         },
         { status: 400 },
       )
@@ -155,7 +155,7 @@ export async function POST() {
       return NextResponse.json(
         {
           error:
-            'WABA (WhatsApp Business Account) ID missing. Re-connect your account in Settings.',
+            "O ID da conta do WhatsApp Business está ausente. Reconecte sua conta em Configurações.",
         },
         { status: 400 },
       )
@@ -177,7 +177,7 @@ export async function POST() {
       })
 
       if (!metaRes.ok) {
-        let metaErr = `Meta API error: ${metaRes.status}`
+        let metaErr = `Erro na API da Meta: ${metaRes.status}`
         try {
           const body = await metaRes.json()
           if (body?.error?.message) metaErr = body.error.message
@@ -307,7 +307,7 @@ export async function POST() {
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : 'Failed to sync templates',
+          error instanceof Error ? error.message : "Não foi possível sincronizar os modelos",
       },
       { status: 500 },
     )

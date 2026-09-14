@@ -33,7 +33,7 @@
 //
 //   <GatedButton
 //     canAct={canCreate}
-//     gateReason="create broadcasts"
+//     gateReason="criar disparos"
 //     onClick={() => router.push("/broadcasts/new")}
 //   >
 //     <Plus className="h-4 w-4" /> New Broadcast
@@ -49,6 +49,7 @@ import type { ComponentProps, ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 interface GatedButtonProps extends Omit<ComponentProps<typeof Button>, "title"> {
   /** False → button is disabled and the wrapper span shows the
@@ -74,9 +75,10 @@ export function GatedButton({
   children,
   ...rest
 }: GatedButtonProps) {
+  const t = useTranslations("Common");
   const effectivelyDisabled = disabled || !canAct;
   const tooltip = !canAct && gateReason
-    ? `Read-only — your role can't ${gateReason}`
+    ? t("readOnlyAction", { action: gateReason })
     : title;
 
   return (

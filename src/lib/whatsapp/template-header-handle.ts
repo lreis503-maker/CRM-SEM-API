@@ -21,7 +21,7 @@ import { isDeliverableUrl } from '@/lib/webhooks/ssrf'
 // One message for the SSRF-guard refusal and a genuinely unreachable
 // host, across all three media kinds — see the guard comment below.
 const UNREACHABLE_MESSAGE =
-  'Could not fetch the header media URL. Make sure it is publicly reachable.'
+  "Não foi possível carregar a URL da mídia do cabeçalho. Verifique se ela está acessível publicamente."
 
 export async function ensureMediaHeaderHandle(
   payload: TemplatePayload,
@@ -37,7 +37,7 @@ export async function ensureMediaHeaderHandle(
   const appId = process.env.META_APP_ID
   if (!appId) {
     throw new Error(
-      'Media-header templates need META_APP_ID set (used for Meta’s Resumable Upload). Add it to your environment, or remove the media header.',
+      "Modelos com mídia no cabeçalho exigem META_APP_ID para o envio retomável da Meta. Defina essa variável de ambiente ou remova a mídia do cabeçalho.",
     )
   }
 
@@ -66,21 +66,21 @@ export async function ensureMediaHeaderHandle(
     throw new Error(UNREACHABLE_MESSAGE)
   }
   if (!res.ok) {
-    throw new Error(`Header ${kind} URL returned ${res.status}. It must be publicly reachable.`)
+    throw new Error(`A URL da mídia do cabeçalho retornou ${res.status}. Ela deve estar acessível publicamente.`)
   }
 
   const contentType = (res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
   if (contentType && !spec.mimeTypes.includes(contentType)) {
-    throw new Error(`Header ${kind} must be ${spec.formats} (got ${contentType}).`)
+    throw new Error(`A mídia do cabeçalho deve ser ${spec.formats} (recebido: ${contentType}).`)
   }
 
   const bytes = new Uint8Array(await res.arrayBuffer())
   if (bytes.byteLength === 0) {
-    throw new Error(`Header ${kind} is empty.`)
+    throw new Error('O arquivo do cabeçalho está vazio.')
   }
   if (bytes.byteLength > spec.maxBytes) {
     throw new Error(
-      `Header ${kind} is ${(bytes.byteLength / 1024 / 1024).toFixed(1)} MB — Meta's limit is ${spec.maxBytes / 1024 / 1024} MB.`,
+      `O arquivo do cabeçalho tem ${(bytes.byteLength / 1024 / 1024).toFixed(1)} MB. O limite da Meta é ${spec.maxBytes / 1024 / 1024} MB.`,
     )
   }
 

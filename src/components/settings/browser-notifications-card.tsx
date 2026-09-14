@@ -88,7 +88,7 @@ export function BrowserNotificationsCard({ className }: { className?: string }) 
     try {
       new Notification(t('testTitle'), {
         body: t('testBody'),
-        icon: '/icon',
+        icon: '/brand/vortex-symbol.png',
         tag: 'wacrm-test-notification',
       });
     } catch {

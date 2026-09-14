@@ -17,6 +17,7 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { useTranslations } from 'next-intl';
+import { translateAuthError } from '@/i18n/auth-errors';
 
 const MIN_PASSWORD = 8;
 
@@ -66,7 +67,7 @@ export function PasswordForm() {
         password: next,
       });
       if (updateError) {
-        toast.error(t('passwordUpdateFailed', { message: updateError.message }));
+        toast.error(t('passwordUpdateFailed', { message: translateAuthError(updateError) }));
         return;
       }
 
@@ -75,8 +76,8 @@ export function PasswordForm() {
       setConfirm('');
       toast.success(t('passwordUpdated'));
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
-      toast.error(msg);
+      const msg = err instanceof Error ? err.message : "Erro desconhecido";
+      toast.error(translateAuthError({ message: msg }));
     } finally {
       setSaving(false);
     }

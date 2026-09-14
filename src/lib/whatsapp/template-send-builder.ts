@@ -85,7 +85,7 @@ function buildHeaderComponent(
     const value = params.headerText;
     if (!value || !value.trim()) {
       throw new Error(
-        'Header text variable {{1}} requires a value — pass headerText.',
+        "A variável {{1}} do cabeçalho exige um valor. Informe headerText.",
       );
     }
     return {
@@ -107,7 +107,7 @@ function buildHeaderComponent(
   const id = params.headerMediaId;
   if (!link && !id) {
     throw new Error(
-      `${headerType} header requires a media link or id at send time — set header_media_url on the template or pass headerMediaUrl/headerMediaId.`,
+      `${headerType}: o cabeçalho exige um link ou ID de mídia no envio. Defina header_media_url no modelo ou informe headerMediaUrl/headerMediaId.`,
     );
   }
   const mediaPayload: { link?: string; id?: string } = id ? { id } : { link };
@@ -132,7 +132,7 @@ function buildBodyComponent(
   if (varCount === 0 && body.length === 0) return null;
   if (body.length < varCount) {
     throw new Error(
-      `Body has ${varCount} variable(s) but only ${body.length} value(s) were supplied.`,
+      `A mensagem tem ${varCount} variável(is), mas apenas ${body.length} valor(es) foram informados.`,
     );
   }
   // Trim to the variable count — extra values are dropped silently so
@@ -175,7 +175,7 @@ function buildButtonComponent(
       // the button's index in the template's buttons array.
       if (!override || !override.trim()) {
         throw new Error(
-          `URL button #${index + 1} uses {{1}} — requires a buttonParams[${index}] value.`,
+          `Botão de URL nº ${index + 1} usa {{1}} e exige um valor em buttonParams[${index}].`,
         );
       }
       return {

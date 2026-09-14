@@ -42,9 +42,9 @@ export function assertMessageTemplate(
     const id =
       row && typeof row === 'object' && 'id' in row
         ? String((row as { id: unknown }).id)
-        : '(unknown id)';
+        : '(identificador desconhecido)';
     throw new Error(
-      `Malformed message_templates row ${id} in ${context} — missing required fields (id, user_id, name, body_text).`,
+      `Registro inválido em message_templates: ${id} (${context}). Faltam campos obrigatórios (id, user_id, name, body_text).`,
     );
   }
   return row;

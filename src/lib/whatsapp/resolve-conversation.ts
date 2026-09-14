@@ -48,7 +48,7 @@ export async function resolveConversationByPhone(
   if (!isValidE164(sanitized)) {
     throw new SendMessageError(
       'bad_request',
-      "'to' must be a valid phone number in E.164 format (e.g. +14155550123)",
+      "O campo 'to' deve ser um telefone válido no formato E.164 (ex.: +5511999999999)",
       400
     );
   }
@@ -63,7 +63,7 @@ export async function resolveConversationByPhone(
   if (!config) {
     throw new SendMessageError(
       'whatsapp_not_configured',
-      'WhatsApp not configured. Please set up your WhatsApp integration first.',
+      "O WhatsApp não está configurado. Configure a integração com o WhatsApp primeiro.",
       400
     );
   }
@@ -119,7 +119,7 @@ export async function resolveConversationByPhone(
         } else {
           throw new SendMessageError(
             'db_error',
-            'Failed to create contact',
+            "Não foi possível criar o contato",
             500
           );
         }
@@ -128,7 +128,7 @@ export async function resolveConversationByPhone(
           '[resolve-conversation] contact create error:',
           createErr
         );
-        throw new SendMessageError('db_error', 'Failed to create contact', 500);
+        throw new SendMessageError('db_error', "Não foi possível criar o contato", 500);
       }
     } else {
       contactId = created.id;
@@ -174,7 +174,7 @@ async function findOrCreateConversationRow(
 
   if (findErr) {
     console.error('[resolve-conversation] conversation lookup error:', findErr);
-    throw new SendMessageError('db_error', 'Failed to resolve conversation', 500);
+    throw new SendMessageError('db_error', "Não foi possível identificar a conversa", 500);
   }
 
   if (existing && existing.length > 0) {
@@ -205,7 +205,7 @@ async function findOrCreateConversationRow(
       }
     }
     console.error('[resolve-conversation] conversation create error:', convErr);
-    throw new SendMessageError('db_error', 'Failed to create conversation', 500);
+    throw new SendMessageError('db_error', "Não foi possível criar a conversa", 500);
   }
 
   return newConv.id;

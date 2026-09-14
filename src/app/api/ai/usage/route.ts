@@ -64,7 +64,7 @@ export async function GET(request: Request) {
     if (error) {
       console.error('[ai/usage GET] fetch error:', error)
       return NextResponse.json(
-        { error: 'Failed to load usage' },
+        { error: "Não foi possível carregar o consumo" },
         { status: 500 },
       )
     }

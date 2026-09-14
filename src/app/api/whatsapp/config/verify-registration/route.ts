@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { hasConfiguredMetaAppSecret } from '@/lib/whatsapp/webhook-signature'
+import { appSubscriptionState } from '@/lib/whatsapp/waba-pairing'
 import {
   getSubscribedApps,
   verifyPhoneNumber,
@@ -35,7 +37,7 @@ export async function GET() {
     error: authError,
   } = await supabase.auth.getUser()
   if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
   }
 
   // whatsapp_config is one-row-per-account post-017. Resolve the
@@ -51,7 +53,7 @@ export async function GET() {
     return NextResponse.json({
       live: false,
       checks: { config_exists: false },
-      message: 'Your profile is not linked to an account.',
+      message: "Seu perfil não está vinculado a uma conta.",
     })
   }
 
@@ -65,7 +67,7 @@ export async function GET() {
     return NextResponse.json({
       live: false,
       checks: { config_exists: false },
-      message: 'No WhatsApp configuration saved yet.',
+      message: "Nenhuma configuração do WhatsApp salva.",
     })
   }
 
@@ -80,7 +82,7 @@ export async function GET() {
         token_decryptable: false,
       },
       message:
-        'Stored access token can\'t be decrypted — likely ENCRYPTION_KEY changed. Re-enter the token to repair.',
+        "Não foi possível descriptografar o token salvo. ENCRYPTION_KEY pode ter mudado. Informe o token novamente para corrigir.",
     })
   }
 
@@ -90,14 +92,21 @@ export async function GET() {
     phone_metadata_ok: boolean
     waba_subscribed_to_app: boolean | null
     locally_marked_registered: boolean
+    webhook_secret_configured: boolean
   } = {
     config_exists: true,
     token_decryptable: true,
     phone_metadata_ok: false,
     waba_subscribed_to_app: null,
     locally_marked_registered: config.registered_at != null,
+    webhook_secret_configured: hasConfiguredMetaAppSecret(),
   }
   const errors: string[] = []
+  if (!checks.webhook_secret_configured) {
+    errors.push(
+      'Configure META_APP_SECRET com o Segredo do aplicativo da Meta em Configurações → Básico. O token de verificação do webhook e o token de acesso não substituem esse segredo.',
+    )
+  }
 
   // 1. Phone metadata
   try {
@@ -108,7 +117,7 @@ export async function GET() {
     checks.phone_metadata_ok = true
   } catch (err) {
     errors.push(
-      `Phone metadata check failed: ${err instanceof Error ? err.message : String(err)}`,
+      `Falha ao verificar os dados do número: ${err instanceof Error ? err.message : String(err)}`,
     )
   }
 
@@ -119,28 +128,26 @@ export async function GET() {
         wabaId: config.waba_id,
         accessToken,
       })
-      // Meta returns the apps subscribed to this WABA. If the list
-      // is non-empty, OUR app is in there (the access_token we used
-      // belongs to our app — Meta wouldn't return data for an app
-      // the token can't see). Treat any entry as success.
-      checks.waba_subscribed_to_app = subs.length > 0
+      const subscription = appSubscriptionState(subs, process.env.META_APP_ID)
+      checks.waba_subscribed_to_app = subscription.subscribed && subscription.appIdMatch !== false
       if (!checks.waba_subscribed_to_app) {
         errors.push(
-          'WABA has no subscribed apps. Re-save the configuration to subscribe.',
+          "O aplicativo configurado não está inscrito na conta do WhatsApp Business. Confira META_APP_ID e salve a configuração novamente para inscrevê-lo.",
         )
       }
     } catch (err) {
       errors.push(
-        `WABA subscription check failed: ${err instanceof Error ? err.message : String(err)}`,
+        `Falha ao verificar a inscrição da conta do WhatsApp Business: ${err instanceof Error ? err.message : String(err)}`,
       )
     }
   } else {
     errors.push(
-      'No WABA ID on file — webhooks can\'t be wired without it. Add it in the form and re-save.',
+      "O ID da conta do WhatsApp Business não foi informado. Ele é necessário para os webhooks. Adicione-o no formulário e salve novamente.",
     )
   }
 
   const live =
+    checks.webhook_secret_configured &&
     checks.phone_metadata_ok &&
     (checks.waba_subscribed_to_app ?? false) &&
     checks.locally_marked_registered

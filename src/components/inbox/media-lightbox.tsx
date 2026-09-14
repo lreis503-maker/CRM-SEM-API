@@ -1,5 +1,6 @@
 "use client";
 
+import { APP_DATE_LOCALE } from "@/i18n/date-locale";
 import { useCallback, useEffect, useState } from "react";
 import { format } from "date-fns";
 import {
@@ -116,7 +117,7 @@ export function MediaLightbox({
   if (!item) return null;
 
   const authorLabel = item.fromCustomer ? contactLabel : t("you");
-  const timestamp = format(new Date(item.createdAt), "MMM d, yyyy HH:mm");
+  const timestamp = format(new Date(item.createdAt), "dd/MM/yyyy HH:mm", { locale: APP_DATE_LOCALE });
 
   return (
     <Dialog

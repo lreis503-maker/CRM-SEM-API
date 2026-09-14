@@ -29,9 +29,9 @@ export async function GET(
 
     if (error) {
       console.error('[api/v1/conversations] read error:', error);
-      return fail('internal', 'Failed to read conversation', 500);
+      return fail('internal', "Não foi possível consultar a conversa", 500);
     }
-    if (!data) return fail('not_found', 'Conversation not found', 404);
+    if (!data) return fail('not_found', "Conversa não encontrada", 404);
 
     return ok(serializeConversation(normalizeConversation(data as Conversation)));
   } catch (err) {

@@ -18,7 +18,7 @@ async function mutateContactTag(
     error?: string;
   } & ContactTagMutationResult;
   if (!response.ok) {
-    throw new Error(body.error ?? 'Failed to update contact tag');
+    throw new Error(body.error ?? "Não foi possível atualizar a etiqueta do contato");
   }
   return body;
 }

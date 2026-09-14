@@ -446,7 +446,7 @@ describe("tag_added — conversation policy", () => {
 
     expect(h.state.logUpdates).toContainEqual(expect.objectContaining({
       status: "failed",
-      error_message: "tag_added automation cannot send: contact has no existing conversation",
+      error_message: "A automação de etiqueta não pode enviar mensagens: o contato ainda não tem uma conversa",
     }));
   });
 });

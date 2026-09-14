@@ -128,7 +128,7 @@ export async function verifyPhoneNumber(
     headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Erro na API da Meta: ${response.status}`)
   }
   return response.json()
 }
@@ -210,7 +210,7 @@ export async function registerPhoneNumber(
   // text "already registered" appears when the number is already
   // subscribed to this app — that's success from the caller's
   // perspective, surface it as such.
-  const error = await readMetaError(response, `Meta API error: ${response.status}`)
+  const error = await readMetaError(response, `Erro na API da Meta: ${response.status}`)
   if (/already.*registered/i.test(error.message)) {
     return { success: true, alreadyRegistered: true }
   }
@@ -236,7 +236,7 @@ export async function subscribeWabaToApp(
     headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Erro na API da Meta: ${response.status}`)
   }
 }
 
@@ -273,7 +273,7 @@ export async function listWabaPhoneNumbers(
       headers: { Authorization: `Bearer ${accessToken}` },
     })
     if (!response.ok) {
-      await throwMetaError(response, `Meta API error: ${response.status}`)
+      await throwMetaError(response, `Erro na API da Meta: ${response.status}`)
     }
     const data = (await response.json()) as {
       data?: WabaPhoneNumber[]
@@ -312,7 +312,7 @@ export async function getSubscribedApps(
     headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Erro na API da Meta: ${response.status}`)
   }
   const data = (await response.json()) as { data?: SubscribedApp[] }
   return data.data ?? []
@@ -377,7 +377,7 @@ export async function sendTextMessage(
     body: JSON.stringify(body),
   })
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Erro na API da Meta: ${response.status}`)
   }
   const data = await response.json()
   return { messageId: data.messages[0].id }
@@ -415,7 +415,7 @@ export async function sendMediaMessage(
   args: SendMediaMessageArgs,
 ): Promise<MetaSendResult> {
   const { phoneNumberId, accessToken, to, kind, link, caption, filename, contextMessageId } = args
-  if (!link) throw new Error('sendMediaMessage requires a link.')
+  if (!link) throw new Error('Informe um link para enviar a mídia.')
   const url = `${META_API_BASE}/${phoneNumberId}/messages`
 
   // Audio accepts neither caption nor filename per Meta's spec — adding
@@ -442,7 +442,7 @@ export async function sendMediaMessage(
     body: JSON.stringify(body),
   })
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Erro na API da Meta: ${response.status}`)
   }
   const data = await response.json()
   return { messageId: data.messages[0].id }
@@ -559,7 +559,7 @@ export async function sendTemplateMessage(
     body: JSON.stringify(body),
   })
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Erro na API da Meta: ${response.status}`)
   }
   const data = await response.json()
   return { messageId: data.messages[0].id }
@@ -613,11 +613,11 @@ export async function uploadResumableMedia(
     { method: 'POST' },
   )
   if (!startRes.ok) {
-    await throwMetaError(startRes, `Resumable upload start failed: ${startRes.status}`)
+    await throwMetaError(startRes, `Falha ao iniciar o envio retomável: ${startRes.status}`)
   }
   const startData = (await startRes.json()) as { id?: string }
   if (!startData.id) {
-    throw new Error('Resumable upload did not return a session id.')
+    throw new Error('O envio retomável não retornou um ID de sessão.')
   }
 
   // Step 2 — upload the bytes. Note the `OAuth` auth scheme (not Bearer)
@@ -633,11 +633,11 @@ export async function uploadResumableMedia(
     body: bytes as unknown as BodyInit,
   })
   if (!uploadRes.ok) {
-    await throwMetaError(uploadRes, `Resumable upload failed: ${uploadRes.status}`)
+    await throwMetaError(uploadRes, `Falha no envio retomável: ${uploadRes.status}`)
   }
   const uploadData = (await uploadRes.json()) as { h?: string }
   if (!uploadData.h) {
-    throw new Error('Resumable upload did not return a file handle.')
+    throw new Error('O envio retomável não retornou um identificador de arquivo.')
   }
   return { handle: uploadData.h }
 }
@@ -687,11 +687,11 @@ export async function submitMessageTemplate(
     body: JSON.stringify(payload),
   })
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Erro na API da Meta: ${response.status}`)
   }
   const data = await response.json()
   if (!data?.id) {
-    throw new Error('Meta accepted the template but returned no id.')
+    throw new Error('A Meta aceitou o modelo, mas não retornou um ID.')
   }
   return {
     id: String(data.id),
@@ -739,7 +739,7 @@ export async function editMessageTemplate(
     body: JSON.stringify(body),
   })
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Erro na API da Meta: ${response.status}`)
   }
   const data = await response.json().catch(() => ({}))
   return { success: data?.success !== false }
@@ -777,7 +777,7 @@ export async function deleteMessageTemplate(
   // side, and we still want the local row removed.
   if (response.status === 404) return
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Erro na API da Meta: ${response.status}`)
   }
 }
 
@@ -818,7 +818,7 @@ export async function sendReactionMessage(
     }),
   })
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Erro na API da Meta: ${response.status}`)
   }
   const data = await response.json()
   return { messageId: data.messages[0].id }
@@ -869,7 +869,7 @@ export async function sendTypingIndicator(
     }),
   })
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Erro na API da Meta: ${response.status}`)
   }
 }
 
@@ -944,23 +944,23 @@ export async function sendInteractiveButtons(
   validateInteractiveHeaderFooter(headerText, footerText)
   if (buttons.length < 1 || buttons.length > INTERACTIVE_LIMITS.maxButtons) {
     throw new Error(
-      `Interactive button message requires 1-${INTERACTIVE_LIMITS.maxButtons} buttons (got ${buttons.length}).`
+      `A mensagem interativa exige de 1 a ${INTERACTIVE_LIMITS.maxButtons} botões (informados: ${buttons.length}).`
     )
   }
   const seenButtonIds = new Set<string>()
   for (const btn of buttons) {
-    if (!btn.id) throw new Error('Interactive button missing id.')
+    if (!btn.id) throw new Error('O botão interativo está sem ID.')
     // Duplicate button ids make the tapped-button webhook ambiguous —
     // Meta rejects them, and the pre-flight validator (interactive.ts)
     // rejects them too, so guard here to keep the two paths in step.
     if (seenButtonIds.has(btn.id)) {
-      throw new Error(`Interactive message has duplicate button id "${btn.id}".`)
+      throw new Error(`A mensagem interativa tem um ID de botão duplicado: "${btn.id}".`)
     }
     seenButtonIds.add(btn.id)
-    if (!btn.title) throw new Error(`Interactive button "${btn.id}" missing title.`)
+    if (!btn.title) throw new Error(`O botão interativo "${btn.id}" está sem título.`)
     if (btn.title.length > INTERACTIVE_LIMITS.buttonTitleMaxLength) {
       throw new Error(
-        `Interactive button title "${btn.title}" exceeds ${INTERACTIVE_LIMITS.buttonTitleMaxLength} chars.`
+        `O título do botão interativo "${btn.title}" excede ${INTERACTIVE_LIMITS.buttonTitleMaxLength} caracteres.`
       )
     }
   }
@@ -996,7 +996,7 @@ export async function sendInteractiveButtons(
     body: JSON.stringify(body),
   })
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Erro na API da Meta: ${response.status}`)
   }
   const data = await response.json()
   return { messageId: data.messages[0].id }
@@ -1049,35 +1049,35 @@ export async function sendInteractiveList(
   } = args
   validateInteractiveBody(bodyText)
   validateInteractiveHeaderFooter(headerText, footerText)
-  if (!buttonLabel) throw new Error('Interactive list requires a buttonLabel.')
+  if (!buttonLabel) throw new Error('Informe o texto do botão da lista interativa.')
   if (buttonLabel.length > INTERACTIVE_LIMITS.buttonTitleMaxLength) {
     throw new Error(
-      `Interactive list buttonLabel "${buttonLabel}" exceeds ${INTERACTIVE_LIMITS.buttonTitleMaxLength} chars.`
+      `O texto do botão da lista "${buttonLabel}" excede ${INTERACTIVE_LIMITS.buttonTitleMaxLength} caracteres.`
     )
   }
   if (sections.length < 1 || sections.length > INTERACTIVE_LIMITS.maxListSections) {
     throw new Error(
-      `Interactive list requires 1-${INTERACTIVE_LIMITS.maxListSections} sections (got ${sections.length}).`
+      `A lista interativa exige de 1 a ${INTERACTIVE_LIMITS.maxListSections} seções (informadas: ${sections.length}).`
     )
   }
   const totalRows = sections.reduce((sum, s) => sum + s.rows.length, 0)
   if (totalRows < 1 || totalRows > INTERACTIVE_LIMITS.maxListRowsTotal) {
     throw new Error(
-      `Interactive list requires 1-${INTERACTIVE_LIMITS.maxListRowsTotal} rows total across all sections (got ${totalRows}).`
+      `A lista interativa exige de 1 a ${INTERACTIVE_LIMITS.maxListRowsTotal} opções no total de todas as seções (informadas: ${totalRows}).`
     )
   }
   const seenIds = new Set<string>()
   for (const section of sections) {
     for (const row of section.rows) {
-      if (!row.id) throw new Error('Interactive list row missing id.')
+      if (!row.id) throw new Error("A opção da lista interativa está sem ID.")
       if (seenIds.has(row.id)) {
-        throw new Error(`Interactive list has duplicate row id "${row.id}".`)
+        throw new Error(`A lista interativa tem um ID de opção duplicado: "${row.id}".`)
       }
       seenIds.add(row.id)
-      if (!row.title) throw new Error(`Interactive list row "${row.id}" missing title.`)
+      if (!row.title) throw new Error(`A opção da lista interativa "${row.id}" está sem título.`)
       if (row.title.length > INTERACTIVE_LIMITS.listRowTitleMaxLength) {
         throw new Error(
-          `Interactive list row title "${row.title}" exceeds ${INTERACTIVE_LIMITS.listRowTitleMaxLength} chars.`
+          `O título da opção da lista interativa "${row.title}" excede ${INTERACTIVE_LIMITS.listRowTitleMaxLength} caracteres.`
         )
       }
       if (
@@ -1085,7 +1085,7 @@ export async function sendInteractiveList(
         row.description.length > INTERACTIVE_LIMITS.listRowDescriptionMaxLength
       ) {
         throw new Error(
-          `Interactive list row description for "${row.id}" exceeds ${INTERACTIVE_LIMITS.listRowDescriptionMaxLength} chars.`
+          `A descrição da opção "${row.id}" excede ${INTERACTIVE_LIMITS.listRowDescriptionMaxLength} caracteres.`
         )
       }
     }
@@ -1127,17 +1127,17 @@ export async function sendInteractiveList(
     body: JSON.stringify(body),
   })
   if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+    await throwMetaError(response, `Erro na API da Meta: ${response.status}`)
   }
   const data = await response.json()
   return { messageId: data.messages[0].id }
 }
 
 function validateInteractiveBody(bodyText: string): void {
-  if (!bodyText) throw new Error('Interactive message requires bodyText.')
+  if (!bodyText) throw new Error("A mensagem interativa exige um texto em bodyText.")
   if (bodyText.length > INTERACTIVE_LIMITS.bodyMaxLength) {
     throw new Error(
-      `Interactive bodyText exceeds ${INTERACTIVE_LIMITS.bodyMaxLength} chars.`
+      `O texto da mensagem interativa excede ${INTERACTIVE_LIMITS.bodyMaxLength} caracteres.`
     )
   }
 }
@@ -1148,12 +1148,12 @@ function validateInteractiveHeaderFooter(
 ): void {
   if (headerText && headerText.length > INTERACTIVE_LIMITS.headerTextMaxLength) {
     throw new Error(
-      `Interactive headerText exceeds ${INTERACTIVE_LIMITS.headerTextMaxLength} chars.`
+      `O cabeçalho da mensagem interativa excede ${INTERACTIVE_LIMITS.headerTextMaxLength} caracteres.`
     )
   }
   if (footerText && footerText.length > INTERACTIVE_LIMITS.footerMaxLength) {
     throw new Error(
-      `Interactive footerText exceeds ${INTERACTIVE_LIMITS.footerMaxLength} chars.`
+      `O rodapé da mensagem interativa excede ${INTERACTIVE_LIMITS.footerMaxLength} caracteres.`
     )
   }
 }
@@ -1185,10 +1185,10 @@ export async function getMediaUrl(
     headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (!response.ok) {
-    await throwMetaError(response, `Media fetch failed: ${response.status}`)
+    await throwMetaError(response, `Falha ao carregar a mídia: ${response.status}`)
   }
   const data = await response.json()
-  if (!data.url) throw new Error('Media URL not found in Meta response')
+  if (!data.url) throw new Error("A resposta da Meta não contém a URL da mídia")
   // Meta documents file_size as a number but has been observed sending
   // it as a numeric string; Number() handles both and NaN-guards junk.
   const size = Number(data.file_size)
@@ -1216,7 +1216,7 @@ export async function downloadMedia(
     headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (!response.ok) {
-    throw new Error(`Media download failed: ${response.status}`)
+    throw new Error(`Falha ao baixar a mídia: ${response.status}`)
   }
   const contentType =
     response.headers.get('content-type') || 'application/octet-stream'

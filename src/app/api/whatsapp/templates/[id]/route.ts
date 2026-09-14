@@ -52,7 +52,7 @@ export async function PATCH(
     const { id } = await context.params
     if (!UUID_RE.test(id)) {
       return NextResponse.json(
-        { error: 'Invalid template id.' },
+        { error: "ID de modelo inválido." },
         { status: 400 },
       )
     }
@@ -62,7 +62,7 @@ export async function PATCH(
       error: authError,
     } = await supabase.auth.getUser()
     if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
     // Resolve the caller's account_id so template + whatsapp_config
@@ -75,7 +75,7 @@ export async function PATCH(
     const accountId = profile?.account_id as string | undefined
     if (!accountId) {
       return NextResponse.json(
-        { error: 'Your profile is not linked to an account.' },
+        { error: "Seu perfil não está vinculado a uma conta." },
         { status: 403 },
       )
     }
@@ -84,7 +84,7 @@ export async function PATCH(
     try {
       payload = (await request.json()) as TemplatePayload
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
+      return NextResponse.json({ error: "Corpo JSON inválido." }, { status: 400 })
     }
 
     // RLS handles ownership, but we need the existing row to read
@@ -96,7 +96,7 @@ export async function PATCH(
       .eq('account_id', accountId)
       .maybeSingle()
     if (lookupErr || !existing) {
-      return NextResponse.json({ error: 'Template not found.' }, { status: 404 })
+      return NextResponse.json({ error: "Modelo não encontrado." }, { status: 404 })
     }
 
     if (!existing.meta_template_id) {
@@ -112,7 +112,7 @@ export async function PATCH(
     if (!EDITABLE_STATUSES.has(existing.status)) {
       return NextResponse.json(
         {
-          error: `Templates in status ${existing.status} cannot be edited. Allowed: APPROVED, REJECTED, PAUSED.`,
+          error: `Templates in status ${existing.status} não pode ser editado. Status permitidos: APPROVED, REJECTED, PAUSED.`,
         },
         { status: 400 },
       )
@@ -122,7 +122,7 @@ export async function PATCH(
       return NextResponse.json(
         {
           error:
-            'AUTHENTICATION templates are not editable here — manage them in Meta WhatsApp Manager.',
+            "Modelos de autenticação não podem ser editados aqui. Gerencie-os no Gerenciador do WhatsApp da Meta.",
         },
         { status: 400 },
       )
@@ -132,7 +132,7 @@ export async function PATCH(
       validateTemplatePayload(payload)
     } catch (e) {
       return NextResponse.json(
-        { error: e instanceof Error ? e.message : 'Validation failed.' },
+        { error: e instanceof Error ? e.message : "Falha na validação." },
         { status: 400 },
       )
     }
@@ -145,7 +145,7 @@ export async function PATCH(
         .single()
       if (configError || !config) {
         return NextResponse.json(
-          { error: 'WhatsApp not configured.' },
+          { error: "O WhatsApp não está configurado." },
           { status: 400 },
         )
       }
@@ -158,7 +158,7 @@ export async function PATCH(
         await ensureMediaHeaderHandle(payload, accessToken)
       } catch (e) {
         return NextResponse.json(
-          { error: e instanceof Error ? e.message : 'Header media upload failed.' },
+          { error: e instanceof Error ? e.message : "Falha ao enviar a mídia do cabeçalho." },
           { status: 400 },
         )
       }
@@ -171,7 +171,7 @@ export async function PATCH(
           components: metaPayload.components,
         })
       } catch (e) {
-        const message = e instanceof Error ? e.message : 'Meta edit failed.'
+        const message = e instanceof Error ? e.message : "Falha ao editar na Meta."
         await supabase
           .from('message_templates')
           .update({
@@ -208,7 +208,7 @@ export async function PATCH(
     if (updErr) {
       return NextResponse.json(
         {
-          error: `Edited on Meta but failed to save locally: ${updErr.message}. Run "Sync from Meta" to recover.`,
+          error: `Editado na Meta, mas não foi possível salvar localmente: ${updErr.message}. Use "Sincronizar com a Meta" para recuperar.`,
         },
         { status: 500 },
       )
@@ -224,7 +224,7 @@ export async function PATCH(
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : 'Failed to edit template.',
+          error instanceof Error ? error.message : "Não foi possível editar o modelo.",
       },
       { status: 500 },
     )
@@ -239,7 +239,7 @@ export async function DELETE(
     const { id } = await context.params
     if (!UUID_RE.test(id)) {
       return NextResponse.json(
-        { error: 'Invalid template id.' },
+        { error: "ID de modelo inválido." },
         { status: 400 },
       )
     }
@@ -249,7 +249,7 @@ export async function DELETE(
       error: authError,
     } = await supabase.auth.getUser()
     if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
     // Same account-scoping rationale as the PATCH handler above —
@@ -263,7 +263,7 @@ export async function DELETE(
     const accountId = profile?.account_id as string | undefined
     if (!accountId) {
       return NextResponse.json(
-        { error: 'Your profile is not linked to an account.' },
+        { error: "Seu perfil não está vinculado a uma conta." },
         { status: 403 },
       )
     }
@@ -275,7 +275,7 @@ export async function DELETE(
       .eq('account_id', accountId)
       .maybeSingle()
     if (lookupErr || !existing) {
-      return NextResponse.json({ error: 'Template not found.' }, { status: 404 })
+      return NextResponse.json({ error: "Modelo não encontrado." }, { status: 404 })
     }
 
     if (existing.meta_template_id && !isDryRun()) {
@@ -286,7 +286,7 @@ export async function DELETE(
         .single()
       if (configError || !config || !config.waba_id) {
         return NextResponse.json(
-          { error: 'WhatsApp not configured — cannot delete on Meta.' },
+          { error: "O WhatsApp não está configurado. Não é possível excluir na Meta." },
           { status: 400 },
         )
       }
@@ -299,7 +299,7 @@ export async function DELETE(
           metaTemplateId: existing.meta_template_id,
         })
       } catch (e) {
-        const message = e instanceof Error ? e.message : 'Meta delete failed.'
+        const message = e instanceof Error ? e.message : "Falha ao excluir na Meta."
         return NextResponse.json({ error: message }, { status: 502 })
       }
     }
@@ -311,7 +311,7 @@ export async function DELETE(
     if (delErr) {
       return NextResponse.json(
         {
-          error: `Deleted on Meta but failed to delete locally: ${delErr.message}.`,
+          error: `Excluído na Meta, mas não foi possível excluir localmente: ${delErr.message}.`,
         },
         { status: 500 },
       )
@@ -323,7 +323,7 @@ export async function DELETE(
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : 'Failed to delete template.',
+          error instanceof Error ? error.message : "Não foi possível excluir o modelo.",
       },
       { status: 500 },
     )

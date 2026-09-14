@@ -861,7 +861,7 @@ function TriggerCard({
             {type === "tag_added" && (
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                  Tag
+                  {t("config.tagLabel")}
                 </label>
                 <TagSelect
                   value={(config.tag_id as string) ?? ""}
@@ -1505,7 +1505,7 @@ function StepEditor({
     case "close_conversation":
       return (
         <p className="text-xs text-muted-foreground">
-          {t("config.closeConversationHint", { defaultValue: "Sets the conversation status to \"closed\". No configuration needed." })}
+          {t("config.closeConversationHint", { defaultValue: "Encerra a conversa. Não é necessário configurar esta etapa." })}
         </p>
       )
     default:
@@ -1531,18 +1531,18 @@ function FieldBlock({
 function previewFor(step: BuilderStep): string {
   switch (step.step_type) {
     case "send_message":
-      return (step.step_config.text as string) || "no text yet"
+      return (step.step_config.text as string) || "sem texto"
     case "send_buttons":
     case "send_list":
-      return interactivePayloadPreviewText(asInteractive(step.step_config)) || "no body yet"
+      return interactivePayloadPreviewText(asInteractive(step.step_config)) || "sem conteúdo"
     case "send_template":
-      return (step.step_config.template_name as string) || "pick a template"
+      return (step.step_config.template_name as string) || "selecione um modelo"
     case "wait":
-      return `${step.step_config.amount ?? "?"} ${step.step_config.unit ?? ""}`
+      return `${step.step_config.amount ?? "?"} ${{ minutes: "minutos", hours: "horas", days: "dias" }[String(step.step_config.unit)] ?? ""}`
     case "condition":
-      return `when ${step.step_config.subject ?? "?"}`
+      return `quando ${{ tag_presence: "há uma etiqueta", contact_field: "o campo do contato corresponde", time_of_day: "o horário corresponde" }[String(step.step_config.subject)] ?? "a condição corresponde"}`
     case "send_webhook":
-      return (step.step_config.url as string) || "no url"
+      return (step.step_config.url as string) || "sem URL"
     default:
       return ""
   }

@@ -1,5 +1,6 @@
 'use client';
 
+import { APP_LOCALE } from "@/i18n/locale";
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { parseBroadcastCsv } from '@/lib/broadcast-csv';
@@ -50,11 +51,12 @@ export function Step2SelectAudience({
   onBack,
 }: Step2Props) {
   const t = useTranslations('Broadcasts.wizard');
+  const tCommon = useTranslations('Common');
 
   const OPERATOR_OPTIONS = useMemo<{ value: CustomFieldOperator; label: string }[]>(() => [
     { value: 'is', label: t('selectAudience.operatorIs') },
     { value: 'is_not', label: t('selectAudience.operatorIsNot') },
-    { value: 'contains', label: t('selectAudience.operatorContains') },
+    { value: "contains", label: t('selectAudience.operatorContains') },
   ], [t]);
 
   const audienceOptions = useMemo<{
@@ -519,13 +521,13 @@ export function Step2SelectAudience({
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-primary" />
             <span className="text-sm text-foreground">
-              {estimatedCount.toLocaleString()}
+              {estimatedCount.toLocaleString(APP_LOCALE)}
             </span>
-            <span className="text-xs text-muted-foreground">estimated recipients</span>
+            <span className="text-xs text-muted-foreground">{tCommon('estimatedRecipients')}</span>
           </div>
         ) : (
           <p className="text-xs text-muted-foreground">
-            Select an audience type to see the estimate.
+            {tCommon('selectAudienceEstimate')}
           </p>
         )}
       </div>

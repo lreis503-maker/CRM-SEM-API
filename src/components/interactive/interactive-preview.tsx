@@ -34,8 +34,8 @@ export function InteractivePreview({
   className?: string;
   labels?: InteractivePreviewLabels;
 }) {
-  const bodyLabel = labels?.body ?? "Message body…";
-  const buttonLabel = labels?.button ?? "Button";
+  const bodyLabel = labels?.body ?? "Texto da mensagem…";
+  const buttonLabel = labels?.button ?? "Botão";
   const menuLabel = labels?.menu ?? "Menu";
   return (
     <div

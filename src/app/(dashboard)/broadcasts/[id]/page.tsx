@@ -1,5 +1,6 @@
 'use client';
 
+import { APP_LOCALE } from "@/i18n/locale";
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -60,7 +61,7 @@ function StatCard({ label, value, total, icon, color }: StatCardProps) {
         </div>
         <span className="text-xs text-muted-foreground">{pct}%</span>
       </div>
-      <p className="mt-3 text-2xl font-bold text-foreground">{value.toLocaleString()}</p>
+      <p className="mt-3 text-2xl font-bold text-foreground">{value.toLocaleString(APP_LOCALE)}</p>
       <p className="text-xs text-muted-foreground">{label}</p>
     </div>
   );
@@ -78,10 +79,11 @@ interface FunnelStep {
  * always render a full bar at the top and proportional tails.
  */
 function FunnelChart({ steps }: { steps: FunnelStep[] }) {
+  const tCommon = useTranslations('Common');
   const max = Math.max(...steps.map((s) => s.value), 1);
   return (
     <div className="rounded-xl border border-border bg-card p-4">
-      <h3 className="mb-4 text-sm font-medium text-foreground">Funnel</h3>
+      <h3 className="mb-4 text-sm font-medium text-foreground">{tCommon('funnel')}</h3>
       <div className="space-y-2">
         {steps.map((step) => {
           const pctOfMax = Math.max(5, Math.round((step.value / max) * 100));
@@ -100,7 +102,7 @@ function FunnelChart({ steps }: { steps: FunnelStep[] }) {
                   style={{ width: `${pctOfMax}%` }}
                 />
                 <span className="absolute inset-0 flex items-center px-3 text-xs font-medium text-foreground">
-                  {step.value.toLocaleString()}
+                  {step.value.toLocaleString(APP_LOCALE)}
                   <span className="ml-2 text-muted-foreground/80">
                     ({pctOfSent}%)
                   </span>
@@ -218,7 +220,7 @@ export default function BroadcastDetailPage() {
     const rows = recipients.map((r) => [
       r.contact?.name ?? '',
       r.contact?.phone ?? '',
-      r.status,
+      tStatus(getRecipientStatus(r.status).label),
       r.sent_at ?? '',
       r.delivered_at ?? '',
       r.read_at ?? '',
@@ -226,7 +228,7 @@ export default function BroadcastDetailPage() {
     ]);
     const csv = toCsv([header, ...rows]);
     const safeName = broadcast.name.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
-    downloadBlob(`broadcast-${safeName}-${broadcastId.slice(0, 8)}.csv`, csv);
+    downloadBlob(`disparo-${safeName}-${broadcastId.slice(0, 8)}.csv`, csv);
   }
 
   /**
@@ -270,7 +272,7 @@ export default function BroadcastDetailPage() {
     } catch (err) {
       toast.error(
         t('toastResumeFailed', {
-          error: err instanceof Error ? err.message : 'Unknown error',
+          error: err instanceof Error ? err.message : "Erro desconhecido",
         }),
       );
     } finally {
@@ -359,7 +361,7 @@ export default function BroadcastDetailPage() {
               <span>{t('template', { name: broadcast.template_name })}</span>
               <span>-</span>
               <span>
-                {t('createdAt', { date: new Date(broadcast.created_at).toLocaleDateString() })}
+                {t('createdAt', { date: new Date(broadcast.created_at).toLocaleDateString(APP_LOCALE) })}
               </span>
             </div>
           </div>
@@ -597,7 +599,7 @@ export default function BroadcastDetailPage() {
                   return (
                     <TableRow key={recipient.id} className="border-border">
                       <TableCell className="font-medium text-foreground">
-                        {recipient.contact?.name ?? 'Unknown'}
+                        {recipient.contact?.name ?? "Desconhecido"}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {recipient.contact?.phone ?? '-'}
@@ -611,17 +613,17 @@ export default function BroadcastDetailPage() {
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {recipient.sent_at
-                          ? new Date(recipient.sent_at).toLocaleString()
+                          ? new Date(recipient.sent_at).toLocaleString(APP_LOCALE)
                           : '-'}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {recipient.delivered_at
-                          ? new Date(recipient.delivered_at).toLocaleString()
+                          ? new Date(recipient.delivered_at).toLocaleString(APP_LOCALE)
                           : '-'}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {recipient.read_at
-                          ? new Date(recipient.read_at).toLocaleString()
+                          ? new Date(recipient.read_at).toLocaleString(APP_LOCALE)
                           : '-'}
                       </TableCell>
                       <TableCell className="max-w-xs truncate text-xs text-red-400">

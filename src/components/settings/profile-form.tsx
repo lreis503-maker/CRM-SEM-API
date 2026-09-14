@@ -1,5 +1,7 @@
 'use client';
 
+import { APP_LOCALE } from "@/i18n/locale";
+import { translateAuthError } from '@/i18n/auth-errors';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Loader2, Upload, Trash2, Mail, CircleAlert } from 'lucide-react';
@@ -165,7 +167,7 @@ export function ProfileForm() {
         if (emailError) {
           // Partial success: name/avatar saved but email didn't.
           toast.success(t('profileSaved'));
-          toast.error(t('emailChangeFailed', { message: emailError.message }));
+          toast.error(t('emailChangeFailed', { message: translateAuthError(emailError) }));
           setSaving(false);
           await refreshProfile();
           return;
@@ -200,7 +202,7 @@ export function ProfileForm() {
       removeAvatar);
 
   const joined = user?.created_at
-    ? new Date(user.created_at).toLocaleDateString(undefined, {
+    ? new Date(user.created_at).toLocaleDateString(APP_LOCALE, {
         year: 'numeric',
         month: 'long',
         day: 'numeric',

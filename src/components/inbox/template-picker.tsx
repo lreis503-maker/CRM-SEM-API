@@ -1,5 +1,7 @@
 "use client";
 
+import { templateCategoryLabels } from '@/lib/template-status';
+
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { MessageTemplate } from "@/types";
@@ -80,6 +82,7 @@ export function TemplatePicker({
   onSelect,
 }: TemplatePickerProps) {
   const t = useTranslations("Inbox.templatePicker");
+  const tCommon = useTranslations("Common");
 
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -230,7 +233,7 @@ export function TemplatePicker({
                           {t.name}
                         </p>
                         <Badge className="border border-primary/30 bg-primary/20 text-[10px] text-primary">
-                          {t.category}
+                          {templateCategoryLabels[t.category] ?? t.category}
                         </Badge>
                         {t.language && (
                           <span className="text-[10px] uppercase text-muted-foreground">
@@ -292,7 +295,7 @@ export function TemplatePicker({
             {slots?.urlButtonSlots.map((slot) => (
               <div key={slot.index} className="space-y-1">
                 <Label className="text-xs text-popover-foreground">
-                  {`URL button "${slot.text}" — value for `}{`{{1}}`}
+                  {tCommon("urlButtonVariable", { text: slot.text })}{`{{1}}`}
                 </Label>
                 <Input
                   value={buttonParams[slot.index] ?? ""}

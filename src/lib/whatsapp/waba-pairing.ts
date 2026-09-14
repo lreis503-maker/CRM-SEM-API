@@ -35,12 +35,12 @@ export function describeWabaPhoneMismatch(
   wabaId: string,
 ): string {
   const head =
-    `Phone Number ID ${phoneNumberId} does not belong to WhatsApp Business Account ${wabaId}.`
+    `O ID do número de telefone ${phoneNumberId} não pertence à conta do WhatsApp Business ${wabaId}.`
   const tail =
-    ' Check both values in Meta → WhatsApp → API Setup: the WABA ID shown there must be the one ' +
-    'that lists this phone number.'
+    " Confira os dois valores em Meta → WhatsApp → Configuração da API. O ID da conta informado deve ser o mesmo " +
+    "que contém este número de telefone."
   if (numbers.length === 0) {
-    return `${head} Meta lists no phone numbers under that WABA.${tail}`
+    return `${head} A Meta não encontrou números de telefone nessa conta.${tail}`
   }
   const listed = numbers
     .slice(0, 5)

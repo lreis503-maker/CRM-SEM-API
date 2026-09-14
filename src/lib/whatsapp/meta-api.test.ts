@@ -32,7 +32,7 @@ describe("sendInteractiveButtons — validation", () => {
   it("rejects an empty buttons array", async () => {
     await expect(
       sendInteractiveButtons({ ...BASE_ARGS, buttons: [] }),
-    ).rejects.toThrow(/1-3 buttons/);
+    ).rejects.toThrow(/de 1 a 3 botões/);
   });
 
   it(`rejects more than ${INTERACTIVE_LIMITS.maxButtons} buttons (Meta cap)`, async () => {
@@ -46,7 +46,7 @@ describe("sendInteractiveButtons — validation", () => {
           { id: "d", title: "D" },
         ],
       }),
-    ).rejects.toThrow(/1-3 buttons/);
+    ).rejects.toThrow(/de 1 a 3 botões/);
   });
 
   it("rejects a button title longer than 20 chars (Meta cap)", async () => {
@@ -57,7 +57,7 @@ describe("sendInteractiveButtons — validation", () => {
           { id: "a", title: "x".repeat(INTERACTIVE_LIMITS.buttonTitleMaxLength + 1) },
         ],
       }),
-    ).rejects.toThrow(/exceeds 20 chars/);
+    ).rejects.toThrow(/excede 20 caracteres/);
   });
 
   it("rejects a button missing its id", async () => {
@@ -66,7 +66,7 @@ describe("sendInteractiveButtons — validation", () => {
         ...BASE_ARGS,
         buttons: [{ id: "", title: "Choose me" }],
       }),
-    ).rejects.toThrow(/missing id/);
+    ).rejects.toThrow(/sem ID/);
   });
 
   it("rejects an empty body text", async () => {
@@ -76,7 +76,7 @@ describe("sendInteractiveButtons — validation", () => {
         bodyText: "",
         buttons: [{ id: "a", title: "A" }],
       }),
-    ).rejects.toThrow(/requires bodyText/);
+    ).rejects.toThrow(/exige um texto em bodyText/);
   });
 
   it("rejects a header text over the limit", async () => {
@@ -86,7 +86,7 @@ describe("sendInteractiveButtons — validation", () => {
         headerText: "x".repeat(INTERACTIVE_LIMITS.headerTextMaxLength + 1),
         buttons: [{ id: "a", title: "A" }],
       }),
-    ).rejects.toThrow(/headerText exceeds/);
+    ).rejects.toThrow(/cabeçalho da mensagem interativa excede/);
   });
 
   it("sends the right payload shape when all inputs are valid", async () => {
@@ -158,13 +158,13 @@ describe("sendInteractiveList — validation", () => {
         buttonLabel: "Open",
         sections: [],
       }),
-    ).rejects.toThrow(/1-10 sections/);
+    ).rejects.toThrow(/de 1 a 10 seções/);
   });
 
   it(`rejects more than ${INTERACTIVE_LIMITS.maxListRowsTotal} rows total across sections (Meta cap)`, async () => {
     const rows = Array.from({ length: 11 }, (_, i) => ({
       id: `r${i}`,
-      title: `Row ${i}`,
+      title: `A opção ${i}`,
     }));
     await expect(
       sendInteractiveList({
@@ -172,7 +172,7 @@ describe("sendInteractiveList — validation", () => {
         buttonLabel: "Open",
         sections: [{ rows }],
       }),
-    ).rejects.toThrow(/1-10 rows total/);
+    ).rejects.toThrow(/de 1 a 10 opções no total/);
   });
 
   it("rejects a row title longer than 24 chars (Meta cap)", async () => {
@@ -191,7 +191,7 @@ describe("sendInteractiveList — validation", () => {
           },
         ],
       }),
-    ).rejects.toThrow(/exceeds 24 chars/);
+    ).rejects.toThrow(/excede 24 caracteres/);
   });
 
   it("rejects duplicate row ids across sections", async () => {
@@ -204,7 +204,7 @@ describe("sendInteractiveList — validation", () => {
           { rows: [{ id: "dupe", title: "Second" }] },
         ],
       }),
-    ).rejects.toThrow(/duplicate row id/);
+    ).rejects.toThrow(/ID de opção duplicado/);
   });
 
   it("rejects an empty buttonLabel", async () => {
@@ -214,7 +214,7 @@ describe("sendInteractiveList — validation", () => {
         buttonLabel: "",
         sections: [{ rows: [ROW] }],
       }),
-    ).rejects.toThrow(/requires a buttonLabel/);
+    ).rejects.toThrow(/texto do botão da lista interativa/);
   });
 
   it("sends the right payload shape when valid", async () => {

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { hasConfiguredMetaAppSecret } from '@/lib/whatsapp/webhook-signature'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import {
@@ -105,7 +106,7 @@ export async function GET() {
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
     const accountId = await resolveAccountId(supabase, user.id)
@@ -114,7 +115,7 @@ export async function GET() {
         {
           connected: false,
           reason: 'no_account',
-          message: 'Your profile is not linked to an account.',
+          message: "Seu perfil não está vinculado a uma conta.",
         },
         { status: 200 },
       )
@@ -129,7 +130,7 @@ export async function GET() {
     if (configError) {
       console.error('Error fetching whatsapp_config:', configError)
       return NextResponse.json(
-        { connected: false, reason: 'db_error', message: 'Failed to fetch configuration' },
+        { connected: false, reason: 'db_error', message: "Não foi possível carregar a configuração" },
         { status: 200 }
       )
     }
@@ -139,7 +140,7 @@ export async function GET() {
         {
           connected: false,
           reason: 'no_config',
-          message: 'No WhatsApp configuration saved yet. Fill in the form and click Save Configuration.',
+          message: "Nenhuma configuração do WhatsApp salva. Preencha o formulário e clique em Salvar configuração.",
         },
         { status: 200 }
       )
@@ -158,7 +159,7 @@ export async function GET() {
           reason: 'token_corrupted',
           needs_reset: true,
           message:
-            'The stored access token cannot be decrypted with the current ENCRYPTION_KEY. This usually means the key changed, or it differs between environments (local vs Hostinger vs Vercel). Click "Reset Configuration" below, then re-save.',
+            "Não é possível descriptografar o token salvo com a ENCRYPTION_KEY atual. A chave pode ter mudado ou ser diferente entre os ambientes local, Hostinger e Vercel. Clique em \"Redefinir configuração\" abaixo e salve novamente.",
         },
         { status: 200 }
       )
@@ -223,11 +224,12 @@ export async function GET() {
       connected: true,
       phone_info: phoneInfo,
       waba_subscription: wabaSubscription,
+      webhook_security: { configured: hasConfiguredMetaAppSecret() },
     })
   } catch (error) {
     console.error('Error in WhatsApp config GET:', error)
     return NextResponse.json(
-      { connected: false, reason: 'unknown', message: 'Internal server error' },
+      { connected: false, reason: 'unknown', message: "Erro interno do servidor" },
       { status: 500 }
     )
   }
@@ -254,13 +256,13 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
     const accountId = await resolveAccountId(supabase, user.id)
     if (!accountId) {
       return NextResponse.json(
-        { error: 'Your profile is not linked to an account.' },
+        { error: "Seu perfil não está vinculado a uma conta." },
         { status: 403 },
       )
     }
@@ -270,7 +272,7 @@ export async function POST(request: Request) {
 
     if (!access_token || !phone_number_id) {
       return NextResponse.json(
-        { error: 'access_token and phone_number_id are required' },
+        { error: "O token de acesso e o ID do número de telefone são obrigatórios" },
         { status: 400 }
       )
     }
@@ -283,7 +285,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            'Phone Number ID must contain only digits — it is the numeric id shown under Meta → WhatsApp → API Setup, not the phone number itself.',
+            "O ID do número de telefone deve conter apenas dígitos. Copie o identificador exibido em Meta → WhatsApp → Configuração da API.",
           field: 'phone_number_id',
         },
         { status: 400 }
@@ -293,7 +295,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            'WhatsApp Business Account ID must contain only digits — copy it from Meta → WhatsApp → API Setup.',
+            "O ID da conta do WhatsApp Business deve conter apenas dígitos. Copie-o em Meta → WhatsApp → Configuração da API.",
           field: 'waba_id',
         },
         { status: 400 }
@@ -304,7 +306,7 @@ export async function POST(request: Request) {
     if (pin !== undefined && pin !== null && pin !== '') {
       if (typeof pin !== 'string' || !/^\d{6}$/.test(pin)) {
         return NextResponse.json(
-          { error: 'PIN must be exactly 6 digits.' },
+          { error: "O PIN deve ter exatamente 6 dígitos." },
           { status: 400 }
         )
       }
@@ -327,7 +329,7 @@ export async function POST(request: Request) {
     if (claimedError) {
       console.error('Error checking phone_number_id ownership:', claimedError)
       return NextResponse.json(
-        { error: 'Failed to validate configuration' },
+        { error: "Não foi possível validar a configuração" },
         { status: 500 }
       )
     }
@@ -336,7 +338,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            'This WhatsApp phone number is already linked to another account on this instance. Each phone number can only be connected to one wacrm user.',
+            "Este número do WhatsApp já está vinculado a outra conta nesta instalação. Cada número só pode ser conectado a uma conta do Vortex CRM.",
         },
         { status: 409 }
       )
@@ -378,7 +380,7 @@ export async function POST(request: Request) {
               fbtrace_id: null,
               step: 'waba_phone_numbers',
               field: 'waba_id',
-              message: 'phone_number_id is not listed under waba_id',
+              message: "O número de telefone não pertence à conta do WhatsApp Business informada",
             },
           },
           { status: 400 }
@@ -393,12 +395,12 @@ export async function POST(request: Request) {
       encryptedAccessToken = encrypt(access_token)
       encryptedVerifyToken = verify_token ? encrypt(verify_token) : null
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown encryption error'
+      const message = err instanceof Error ? err.message : "Erro de criptografia desconhecido"
       console.error('Encryption failed:', message)
       return NextResponse.json(
         {
           error:
-            'Failed to encrypt token. Check that ENCRYPTION_KEY is a valid 64-character hex string in your environment variables.',
+            "Não foi possível criptografar o token. Verifique se ENCRYPTION_KEY contém uma chave hexadecimal válida de 64 caracteres nas variáveis de ambiente.",
         },
         { status: 500 }
       )
@@ -515,7 +517,7 @@ export async function POST(request: Request) {
       if (updateError) {
         console.error('Error updating whatsapp_config:', updateError)
         return NextResponse.json(
-          { error: 'Failed to update configuration' },
+          { error: "Não foi possível atualizar a configuração" },
           { status: 500 }
         )
       }
@@ -535,7 +537,7 @@ export async function POST(request: Request) {
       if (insertError) {
         console.error('Error inserting whatsapp_config:', insertError)
         return NextResponse.json(
-          { error: 'Failed to save configuration' },
+          { error: "Não foi possível salvar a configuração" },
           { status: 500 }
         )
       }
@@ -569,7 +571,7 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     console.error('Error in WhatsApp config POST:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }
 
@@ -590,13 +592,13 @@ export async function DELETE() {
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
     const accountId = await resolveAccountId(supabase, user.id)
     if (!accountId) {
       return NextResponse.json(
-        { error: 'Your profile is not linked to an account.' },
+        { error: "Seu perfil não está vinculado a uma conta." },
         { status: 403 },
       )
     }
@@ -609,7 +611,7 @@ export async function DELETE() {
     if (deleteError) {
       console.error('Error deleting whatsapp_config:', deleteError)
       return NextResponse.json(
-        { error: 'Failed to delete configuration' },
+        { error: "Não foi possível excluir a configuração" },
         { status: 500 }
       )
     }
@@ -617,6 +619,6 @@ export async function DELETE() {
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Error in WhatsApp config DELETE:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }

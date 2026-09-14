@@ -47,13 +47,13 @@ describe("describeWabaPhoneMismatch", () => {
       "333",
       "999",
     );
-    expect(text).toMatch(/Phone Number ID 333 does not belong to WhatsApp Business Account 999/);
+    expect(text).toMatch(/ID do número de telefone 333 não pertence à conta do WhatsApp Business 999/);
     expect(text).toMatch(/\+1 555-0100 \(111\), 222/);
-    expect(text).toMatch(/API Setup/);
+    expect(text).toMatch(/Configuração da API/);
   });
 
   it("says so when the WABA has no numbers at all", () => {
-    expect(describeWabaPhoneMismatch([], "333", "999")).toMatch(/lists no phone numbers/);
+    expect(describeWabaPhoneMismatch([], "333", "999")).toMatch(/não encontrou números de telefone/);
   });
 
   it("caps the listing at five and counts the rest", () => {

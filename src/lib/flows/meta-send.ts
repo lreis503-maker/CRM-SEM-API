@@ -47,7 +47,7 @@ export async function loadAccountMetaCredentials(
     .eq('account_id', accountId)
     .single()
   if (configErr || !config) {
-    throw new Error('WhatsApp not configured for this account')
+    throw new Error("O WhatsApp não está configurado para esta conta")
   }
   return {
     phoneNumberId: config.phone_number_id,
@@ -97,7 +97,7 @@ export async function engineSendText(
     .eq('account_id', args.accountId)
     .maybeSingle()
   if (contactErr || !contact) {
-    throw new Error('contact not found for this account')
+    throw new Error("O contato não foi encontrado nesta conta")
   }
 
   // Phone number, or the business-scoped user ID when Meta has never
@@ -105,7 +105,7 @@ export async function engineSendText(
   const sendTarget = resolveContactSendTarget(contact)
   if (!sendTarget) {
     throw new Error(
-      `contact has no usable WhatsApp address (phone: ${contact.phone || 'none'})`
+      `O contato não tem um endereço válido no WhatsApp (telefone: ${contact.phone || "nenhum"})`
     )
   }
   const sanitized = sendTarget.target
@@ -157,7 +157,7 @@ export async function engineSendText(
     ai_generated: args.aiGenerated ?? false,
   })
   if (msgErr) {
-    throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
+    throw new Error(`Enviado para a Meta, mas não foi possível salvar no banco de dados: ${msgErr.message}`)
   }
 
   await db
@@ -206,7 +206,7 @@ export async function engineSendMedia(
     .eq('account_id', args.accountId)
     .maybeSingle()
   if (contactErr || !contact) {
-    throw new Error('contact not found for this account')
+    throw new Error("O contato não foi encontrado nesta conta")
   }
 
   // Phone number, or the business-scoped user ID when Meta has never
@@ -214,7 +214,7 @@ export async function engineSendMedia(
   const sendTarget = resolveContactSendTarget(contact)
   if (!sendTarget) {
     throw new Error(
-      `contact has no usable WhatsApp address (phone: ${contact.phone || 'none'})`
+      `O contato não tem um endereço válido no WhatsApp (telefone: ${contact.phone || "nenhum"})`
     )
   }
   const sanitized = sendTarget.target
@@ -273,7 +273,7 @@ export async function engineSendMedia(
     status: 'sent',
   })
   if (msgErr) {
-    throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
+    throw new Error(`Enviado para a Meta, mas não foi possível salvar no banco de dados: ${msgErr.message}`)
   }
 
   await db
@@ -357,7 +357,7 @@ async function sendInteractiveViaMeta(
     .eq('account_id', input.accountId)
     .maybeSingle()
   if (contactErr || !contact) {
-    throw new Error('contact not found for this account')
+    throw new Error("O contato não foi encontrado nesta conta")
   }
 
   // Phone number, or the business-scoped user ID when Meta has never
@@ -365,7 +365,7 @@ async function sendInteractiveViaMeta(
   const sendTarget = resolveContactSendTarget(contact)
   if (!sendTarget) {
     throw new Error(
-      `contact has no usable WhatsApp address (phone: ${contact.phone || 'none'})`
+      `O contato não tem um endereço válido no WhatsApp (telefone: ${contact.phone || "nenhum"})`
     )
   }
   const sanitized = sendTarget.target
@@ -465,7 +465,7 @@ async function sendInteractiveViaMeta(
     status: 'sent',
   })
   if (msgErr) {
-    throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
+    throw new Error(`Enviado para a Meta, mas não foi possível salvar no banco de dados: ${msgErr.message}`)
   }
 
   await db

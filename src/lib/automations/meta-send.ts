@@ -126,7 +126,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
     .eq('account_id', input.accountId)
     .maybeSingle()
   if (contactErr || !contact) {
-    throw new Error('contact not found for this account')
+    throw new Error("O contato não foi encontrado nesta conta")
   }
 
   // Phone number, or the business-scoped user ID when Meta has never
@@ -134,7 +134,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   const sendTarget = resolveContactSendTarget(contact)
   if (!sendTarget) {
     throw new Error(
-      `contact has no usable WhatsApp address (phone: ${contact.phone || 'none'})`
+      `O contato não tem um endereço válido no WhatsApp (telefone: ${contact.phone || "nenhum"})`
     )
   }
   const sanitized = sendTarget.target
@@ -145,7 +145,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
     .eq('account_id', input.accountId)
     .single()
   if (configErr || !config) {
-    throw new Error('WhatsApp not configured for this account')
+    throw new Error("O WhatsApp não está configurado para esta conta")
   }
 
   const accessToken = decrypt(config.access_token)
@@ -237,7 +237,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   if (msgErr) {
     // Meta already has the message; record the DB error but don't pretend
     // the send failed. The engine wraps this in a log line.
-    throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
+    throw new Error(`Enviado para a Meta, mas não foi possível salvar no banco de dados: ${msgErr.message}`)
   }
 
   await db

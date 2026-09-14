@@ -161,12 +161,12 @@ describe("buildNotificationContent", () => {
 
   it("describes media types in plain words", () => {
     const cases: [NotifiableMessage["content_type"], string][] = [
-      ["image", "📷 Photo"],
-      ["audio", "🎤 Voice message"],
-      ["video", "🎬 Video"],
-      ["document", "📄 Document"],
-      ["location", "📍 Location"],
-      ["template", "📋 Template"],
+      ["image", "📷 Foto"],
+      ["audio", "🎤 Mensagem de voz"],
+      ["video", "🎬 Vídeo"],
+      ["document", "📄 Documento"],
+      ["location", "📍 Localização"],
+      ["template", "📋 Modelo"],
     ];
     for (const [content_type, label] of cases) {
       expect(
@@ -184,7 +184,7 @@ describe("buildNotificationContent", () => {
         customerMsg({ content_type: "image", content_text: "the receipt" }),
         "Ada",
       ).body,
-    ).toBe("📷 Photo · the receipt");
+    ).toBe("📷 Foto · the receipt");
   });
 
   it("uses the tapped option text for interactive replies", () => {

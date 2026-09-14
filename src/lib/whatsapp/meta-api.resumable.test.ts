@@ -66,7 +66,7 @@ describe('uploadResumableMedia', () => {
         mimeType: 'image/png',
         bytes: new Uint8Array([0]),
       }),
-    ).rejects.toThrow(/session id/);
+    ).rejects.toThrow(/ID de sessão/);
   });
 
   it('throws if the upload response has no handle', async () => {
@@ -86,6 +86,6 @@ describe('uploadResumableMedia', () => {
         mimeType: 'image/png',
         bytes: new Uint8Array([0]),
       }),
-    ).rejects.toThrow(/file handle/);
+    ).rejects.toThrow(/identificador de arquivo/);
   });
 });

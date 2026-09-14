@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   parseAppSecrets,
+  hasConfiguredMetaAppSecret,
   verifyMetaWebhookSignature,
 } from "./webhook-signature";
 
@@ -91,6 +92,13 @@ describe("verifyMetaWebhookSignature", () => {
   });
 
   describe("parseAppSecrets", () => {
+    it("ignora o valor de exemplo sem descartar segredos reais na mesma lista", () => {
+      expect(parseAppSecrets("your-meta-app-secret")).toEqual([]);
+      expect(parseAppSecrets(`your-meta-app-secret, ${SECRET}`)).toEqual([SECRET]);
+      expect(hasConfiguredMetaAppSecret("your-meta-app-secret")).toBe(false);
+      expect(hasConfiguredMetaAppSecret(SECRET)).toBe(true);
+    });
+
     it("splits on commas, trims, and drops empties", () => {
       expect(parseAppSecrets(" a , b,,c ,")).toEqual(["a", "b", "c"]);
     });
@@ -128,6 +136,11 @@ describe("verifyMetaWebhookSignature", () => {
       const body = "{}";
       expect(verifyMetaWebhookSignature(body, signedHeader(body, " , "))).toBe(false);
       expect(verifyMetaWebhookSignature(body, signedHeader(body, ""))).toBe(false);
+    });
+
+    it("rejeita uma assinatura criada com o segredo de exemplo público", () => {
+      process.env.META_APP_SECRET = "your-meta-app-secret";
+      expect(verifyMetaWebhookSignature("{}", signedHeader("{}", "your-meta-app-secret"))).toBe(false);
     });
   });
 });

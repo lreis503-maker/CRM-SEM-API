@@ -22,16 +22,17 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "wacrm",
-    template: "%s — wacrm",
+    default: "Vortex CRM",
+    template: "%s — Vortex CRM",
   },
-  description: "Self-hostable CRM template for WhatsApp.",
+  description: "Vortex CRM: atendimento pelo WhatsApp, contatos, funis de vendas e automações em uma só plataforma.",
   robots: {
     index: false,
     follow: false,
   },
   icons: {
-    icon: [{ url: "/icon" }],
+    icon: [{ url: "/brand/vortex-symbol.png", type: "image/png" }],
+    apple: [{ url: "/brand/vortex-symbol.png", type: "image/png" }],
   },
   formatDetection: {
     email: false,

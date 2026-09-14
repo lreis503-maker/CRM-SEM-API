@@ -1,5 +1,6 @@
 "use client";
 
+import { APP_DATE_LOCALE } from "@/i18n/date-locale";
 import { cn } from "@/lib/utils";
 import type { Message, MessageReaction } from "@/types";
 import {
@@ -249,7 +250,7 @@ export function MessageBubble({
   const t = useTranslations("Inbox.bubble");
 
   const isAgent = message.sender_type === "agent" || message.sender_type === "bot";
-  const time = format(new Date(message.created_at), "HH:mm");
+  const time = format(new Date(message.created_at), "HH:mm", { locale: APP_DATE_LOCALE });
   const failure = isAgent ? failureReason(message) : null;
 
   // Row alignment + width cap are owned by <MessageActions> so its hover

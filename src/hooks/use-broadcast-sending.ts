@@ -169,7 +169,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
 
     if (audience.type === 'all') {
       const { data, error } = await supabase.from('contacts').select('*');
-      if (error) throw new Error(`Failed to fetch contacts: ${error.message}`);
+      if (error) throw new Error(`Não foi possível carregar os contatos: ${error.message}`);
       contacts = data ?? [];
     } else if (
       audience.type === 'tags' &&
@@ -182,7 +182,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
         .in('tag_id', audience.tagIds);
 
       if (tagError)
-        throw new Error(`Failed to fetch contact tags: ${tagError.message}`);
+        throw new Error(`Não foi possível carregar as etiquetas dos contatos: ${tagError.message}`);
 
       if (contactTags && contactTags.length > 0) {
         const uniqueContactIds = [
@@ -192,7 +192,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
           .from('contacts')
           .select('*')
           .in('id', uniqueContactIds);
-        if (error) throw new Error(`Failed to fetch contacts: ${error.message}`);
+        if (error) throw new Error(`Não foi possível carregar os contatos: ${error.message}`);
         contacts = data ?? [];
       }
     } else if (audience.type === 'custom_field' && audience.customField) {
@@ -240,10 +240,10 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
     } = await supabase.auth.getSession();
     const user = session?.user;
     if (!user) {
-      throw new Error('You are not signed in.');
+      throw new Error("Você não está conectado.");
     }
     if (!accountId) {
-      throw new Error('Your profile is not linked to an account.');
+      throw new Error("Seu perfil não está vinculado a uma conta.");
     }
 
     // De-duplicate within the CSV on the NORMALIZED number — the same
@@ -268,7 +268,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       .eq('account_id', accountId)
       .in('phone_normalized', keys);
     if (lookupErr) {
-      throw new Error(`Failed to look up CSV contacts: ${lookupErr.message}`);
+      throw new Error(`Não foi possível consultar os contatos do CSV: ${lookupErr.message}`);
     }
 
     const byKey = new Map<string, Contact>();
@@ -297,7 +297,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
         .insert(chunk)
         .select();
       if (insertErr) {
-        throw new Error(`Failed to create CSV contacts: ${insertErr.message}`);
+        throw new Error(`Não foi possível criar os contatos do CSV: ${insertErr.message}`);
       }
       for (const c of (inserted ?? []) as Contact[]) {
         const key = normalizeKey(c.phone ?? '');
@@ -331,7 +331,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
 
     const { data: matches, error: matchErr } = await query;
     if (matchErr)
-      throw new Error(`Custom-field filter failed: ${matchErr.message}`);
+      throw new Error(`Falha ao filtrar os campos personalizados: ${matchErr.message}`);
 
     const contactIds = [...new Set((matches ?? []).map((m) => m.contact_id))];
     if (contactIds.length === 0) return [];
@@ -340,7 +340,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       .from('contacts')
       .select('*')
       .in('id', contactIds);
-    if (error) throw new Error(`Failed to fetch contacts: ${error.message}`);
+    if (error) throw new Error(`Não foi possível carregar os contatos: ${error.message}`);
     return data ?? [];
   }
 
@@ -361,10 +361,10 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       } = await supabase.auth.getSession();
       const user = session?.user;
       if (!user) {
-        throw new Error('You are not signed in.');
+        throw new Error("Você não está conectado.");
       }
       if (!accountId) {
-        throw new Error('Your profile is not linked to an account.');
+        throw new Error("Seu perfil não está vinculado a uma conta.");
       }
 
       // ── Step 1: Resolve audience contacts ─────────────────────────
@@ -372,7 +372,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       const contacts = await resolveAudience(payload.audience);
 
       if (contacts.length === 0) {
-        throw new Error('No contacts found for this audience.');
+        throw new Error("Nenhum contato encontrado para este público.");
       }
 
       // ── Step 2: Create broadcast row ──────────────────────────────
@@ -405,7 +405,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
 
       if (broadcastError || !broadcast) {
         throw new Error(
-          `Failed to create broadcast: ${broadcastError?.message ?? 'unknown error'}`,
+          `Não foi possível criar o disparo: ${broadcastError?.message ?? "erro desconhecido"}`,
         );
       }
 
@@ -458,7 +458,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
             })
             .eq('id', broadcast.id);
           throw new Error(
-            `Failed to insert recipient batch ${i / INSERT_BATCH_SIZE + 1}: ${recipientError.message}`,
+            `Não foi possível salvar o lote de destinatários ${i / INSERT_BATCH_SIZE + 1}: ${recipientError.message}`,
           );
         }
       }
@@ -529,7 +529,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
                 ? batchRetryDelayMs(res.status, res.headers.get('Retry-After'))
                 : null;
             if (retryIn === null) {
-              throw new Error(data.error || 'Broadcast API request failed');
+              throw new Error(data.error || 'Não foi possível enviar a solicitação de disparo');
             }
             await sleep(retryIn);
           }
@@ -571,7 +571,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
                 .from('broadcast_recipients')
                 .update({
                   status: 'failed',
-                  error_message: result.error ?? 'Unknown error',
+                  error_message: result.error ?? "Erro desconhecido",
                 })
                 .eq('id', recipient.id);
             }
@@ -583,7 +583,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
               .from('broadcast_recipients')
               .update({
                 status: 'failed',
-                error_message: err instanceof Error ? err.message : 'Unknown error',
+                error_message: err instanceof Error ? err.message : "Erro desconhecido",
               })
               .eq('id', recipient.id);
           }

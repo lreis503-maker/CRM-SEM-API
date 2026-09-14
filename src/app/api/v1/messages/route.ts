@@ -50,12 +50,12 @@ export async function POST(request: Request) {
       unknown
     > | null;
     if (!body || typeof body !== 'object') {
-      return fail('bad_request', 'Request body must be a JSON object', 400);
+      return fail('bad_request', "O corpo da solicitação deve ser um objeto JSON", 400);
     }
 
     const to = typeof body.to === 'string' ? body.to.trim() : '';
     if (!to) {
-      return fail('bad_request', "'to' is required", 400);
+      return fail('bad_request', "O campo 'to' é obrigatório", 400);
     }
 
     const type = typeof body.type === 'string' ? body.type : 'text';
