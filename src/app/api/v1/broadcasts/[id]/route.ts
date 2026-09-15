@@ -10,6 +10,11 @@
 
 import { requireApiKey } from '@/lib/auth/api-context';
 import { ok, fail, toApiErrorResponse } from '@/lib/api/v1/respond';
+import {
+  isProviderNotSupportedError,
+  providerCapabilityErrorResponse,
+  requireAccountCapability,
+} from '@/lib/whatsapp/providers/account-capability-guard';
 
 export async function GET(
   request: Request,
@@ -17,6 +22,11 @@ export async function GET(
 ) {
   try {
     const ctx = await requireApiKey(request, 'broadcasts:send');
+    await requireAccountCapability(
+      ctx.supabase,
+      ctx.accountId,
+      'broadcasts'
+    );
     const { id } = await params;
 
     const { data, error } = await ctx.supabase
@@ -36,6 +46,9 @@ export async function GET(
 
     return ok(data);
   } catch (err) {
+    if (isProviderNotSupportedError(err)) {
+      return providerCapabilityErrorResponse(err);
+    }
     return toApiErrorResponse(err);
   }
 }

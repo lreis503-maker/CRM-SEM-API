@@ -37,6 +37,11 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit';
+import {
+  isProviderNotSupportedError,
+  providerCapabilityErrorResponse,
+  requireAccountCapability,
+} from '@/lib/whatsapp/providers/account-capability-guard';
 
 // The fan-out below is sequential over up to 1 000 recipients.
 export const maxDuration = 300;
@@ -52,6 +57,12 @@ export async function POST(
     // write, and viewers are read-only. Resuming is no different — it
     // puts real messages on real phones.
     const { supabase, accountId, userId } = await requireRole('agent');
+
+    await requireAccountCapability(
+      supabase,
+      accountId,
+      'broadcasts'
+    );
 
     const limit = checkRateLimit(
       `broadcast-resume:${userId}`,
@@ -130,6 +141,9 @@ export async function POST(
     // locked out of resuming until the staleness window expires.
     if (claimedId) {
       await releaseBroadcastDelivery(supabaseAdmin(), claimedId).catch(() => {});
+    }
+    if (isProviderNotSupportedError(error)) {
+      return providerCapabilityErrorResponse(error);
     }
     if (error instanceof BroadcastError) {
       return NextResponse.json(

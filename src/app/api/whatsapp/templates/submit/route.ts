@@ -15,6 +15,11 @@ import {
 import { buildMetaTemplatePayload } from '@/lib/whatsapp/template-components'
 import { ensureMediaHeaderHandle } from '@/lib/whatsapp/template-header-handle'
 import { normalizeStatus } from '@/lib/whatsapp/template-status-normalize'
+import {
+  isProviderNotSupportedError,
+  providerCapabilityErrorResponse,
+  requireAccountCapability,
+} from '@/lib/whatsapp/providers/account-capability-guard'
 
 /**
  * Shared upsert payload builder — both the Meta-failure path and the
@@ -100,6 +105,12 @@ export async function POST(request: Request) {
     // approval — an external side effect RLS can't roll back — before the
     // local upsert was refused.
     const { supabase, accountId, userId } = await requireRole('admin')
+
+    await requireAccountCapability(
+      supabase,
+      accountId,
+      'templates',
+    )
 
     let payload: TemplatePayload
     try {
@@ -239,6 +250,9 @@ export async function POST(request: Request) {
       dry_run: dryRun,
     })
   } catch (error) {
+    if (isProviderNotSupportedError(error)) {
+      return providerCapabilityErrorResponse(error)
+    }
     // Auth failures map to 401/403. Handled before the generic branch
     // below, which surfaces `error.message` as a 500 — reporting "you
     // aren't an admin" as a template submission failure would send the

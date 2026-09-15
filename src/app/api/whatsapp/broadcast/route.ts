@@ -15,6 +15,11 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit'
+import {
+  isProviderNotSupportedError,
+  providerCapabilityErrorResponse,
+  requireAccountCapability,
+} from '@/lib/whatsapp/providers/account-capability-guard'
 
 interface BroadcastResult {
   phone: string
@@ -73,6 +78,12 @@ export async function POST(request: Request) {
     // Nothing about that is recoverable after the fact, so the check has
     // to happen here.
     const { supabase, accountId, userId } = await requireRole('agent')
+
+    await requireAccountCapability(
+      supabase,
+      accountId,
+      'broadcasts',
+    )
 
     // Per-user broadcast budget. Note: this limits how often a user
     // can *start* a campaign, not how many messages go out inside
@@ -239,6 +250,9 @@ export async function POST(request: Request) {
       results,
     })
   } catch (error) {
+    if (isProviderNotSupportedError(error)) {
+      return providerCapabilityErrorResponse(error)
+    }
     // requireRole throws Unauthorized/Forbidden; toErrorResponse maps
     // those to 401/403 and collapses anything else to a generic 500.
     console.error('Error in WhatsApp broadcast POST:', error)

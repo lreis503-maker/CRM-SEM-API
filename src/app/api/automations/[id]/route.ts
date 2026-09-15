@@ -11,6 +11,21 @@ import {
   validateStepsForActivation,
   validateTriggerForActivation,
 } from '@/lib/automations/validate'
+import {
+  isProviderNotSupportedError,
+  providerCapabilityErrorResponse,
+  requireAccountCapability,
+} from '@/lib/whatsapp/providers/account-capability-guard'
+
+function containsTemplateStep(steps: unknown): boolean {
+  return Array.isArray(steps) && steps.some(
+    (step) =>
+      typeof step === 'object' &&
+      step !== null &&
+      'step_type' in step &&
+      step.step_type === 'send_template',
+  )
+}
 
 async function requireUser() {
   const supabase = await createClient()
@@ -52,8 +67,9 @@ export async function PATCH(
   // Editing an automation is a write — the RLS automations_update policy
   // requires `agent`, but this route mutates via the service-role client
   // which bypasses RLS, so enforce the role here.
+  let accountContext: Awaited<ReturnType<typeof requireRole>>
   try {
-    await requireRole('agent')
+    accountContext = await requireRole('agent')
   } catch (err) {
     return toErrorResponse(err)
   }
@@ -63,6 +79,21 @@ export async function PATCH(
 
   const body = await request.json().catch(() => null)
   if (!body) return NextResponse.json({ error: "JSON inválido" }, { status: 400 })
+
+  if (containsTemplateStep(body.steps)) {
+    try {
+      await requireAccountCapability(
+        accountContext.supabase,
+        accountContext.accountId,
+        'templates',
+      )
+    } catch (error) {
+      if (isProviderNotSupportedError(error)) {
+        return providerCapabilityErrorResponse(error)
+      }
+      return toErrorResponse(error)
+    }
+  }
 
   const admin = supabaseAdmin()
 
@@ -100,6 +131,20 @@ export async function PATCH(
     const mergedSteps = Array.isArray(body.steps)
       ? (body.steps as { step_type: string; step_config: Record<string, unknown> }[])
       : await loadStepsTree(id)
+    if (containsTemplateStep(mergedSteps)) {
+      try {
+        await requireAccountCapability(
+          accountContext.supabase,
+          accountContext.accountId,
+          'templates',
+        )
+      } catch (error) {
+        if (isProviderNotSupportedError(error)) {
+          return providerCapabilityErrorResponse(error)
+        }
+        return toErrorResponse(error)
+      }
+    }
     const issues = [
       ...validateTriggerForActivation(mergedTriggerType, mergedTriggerConfig),
       ...validateStepsForActivation(mergedSteps),

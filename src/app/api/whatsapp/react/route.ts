@@ -8,6 +8,11 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit';
+import {
+  isProviderNotSupportedError,
+  providerCapabilityErrorResponse,
+  requireAccountCapability,
+} from '@/lib/whatsapp/providers/account-capability-guard';
 
 /**
  * POST /api/whatsapp/react
@@ -25,6 +30,12 @@ export async function POST(request: Request) {
     // missing role check let a read-only viewer put a visible reaction on
     // the customer's message even though RLS blocked the local mirror.
     const { supabase, accountId, userId } = await requireRole('agent');
+
+    await requireAccountCapability(
+      supabase,
+      accountId,
+      'reactions'
+    );
 
     const limit = checkRateLimit(`react:${userId}`, RATE_LIMITS.react);
     if (!limit.success) {
@@ -166,6 +177,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (isProviderNotSupportedError(error)) {
+      return providerCapabilityErrorResponse(error);
+    }
     // requireRole throws Unauthorized/Forbidden; toErrorResponse maps
     // those to 401/403 and collapses anything else to a generic 500.
     console.error('Error in WhatsApp react POST:', error);

@@ -42,10 +42,21 @@ import {
   deliverBroadcast,
   BroadcastError,
 } from '@/lib/whatsapp/broadcast-core';
+import {
+  isProviderNotSupportedError,
+  providerCapabilityErrorResponse,
+  requireAccountCapability,
+} from '@/lib/whatsapp/providers/account-capability-guard';
 
 export async function POST(request: Request) {
   try {
     const ctx = await requireApiKey(request, 'broadcasts:send');
+
+    await requireAccountCapability(
+      ctx.supabase,
+      ctx.accountId,
+      'broadcasts'
+    );
 
     const body = (await request.json().catch(() => null)) as Record<
       string,
@@ -90,6 +101,9 @@ export async function POST(request: Request) {
       202
     );
   } catch (err) {
+    if (isProviderNotSupportedError(err)) {
+      return providerCapabilityErrorResponse(err);
+    }
     if (err instanceof BroadcastError) {
       return fail(err.code, err.message, err.status);
     }
