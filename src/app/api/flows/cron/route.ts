@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { resolveFallbackPolicy } from '@/lib/flows/fallback'
+import { purgeExpiredWebhookQuarantine } from '@/lib/whatsapp/inbound/webhook-quarantine'
 
 /**
  * Sweep abandoned active flow runs.
@@ -107,6 +108,12 @@ export async function GET(request: Request) {
       swept += 1
     }
   }
+
+  // Same rationale as the automations cron: an authenticated scheduled
+  // job is the reliable place to expire quarantine rows, and the purge
+  // self-throttles to once a day. Not awaited — cleanup must not delay
+  // or fail the sweep.
+  void purgeExpiredWebhookQuarantine(admin)
 
   return NextResponse.json({ swept })
 }

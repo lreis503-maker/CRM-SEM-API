@@ -24,10 +24,25 @@ export type UazapiErrorKind =
   | 'invalid_response';
 
 const REDACTED = '[redacted]';
-const MAX_DEPTH = 4;
-const MAX_STRING_LENGTH = 256;
-const MAX_ARRAY_ITEMS = 20;
-const MAX_OBJECT_KEYS = 50;
+
+export interface RedactionLimits {
+  maxDepth: number;
+  maxStringLength: number;
+  maxArrayItems: number;
+  maxObjectKeys: number;
+}
+
+/**
+ * Tight by default: an error is a diagnostic line, not a record. Callers
+ * that keep a payload for later inspection — webhook quarantine — pass
+ * wider limits so the sample stays useful.
+ */
+const DEFAULT_LIMITS: RedactionLimits = {
+  maxDepth: 4,
+  maxStringLength: 256,
+  maxArrayItems: 20,
+  maxObjectKeys: 50,
+};
 
 /**
  * Key names whose value is always a credential, a QR code or raw media.
@@ -47,25 +62,26 @@ const DATA_URL_PATTERN = /^\s*data:[^,]*,/i;
  */
 const TOKEN_SHAPED_PATTERN = /[A-Za-z0-9+/_=-]{24,}/g;
 
-function sanitizeString(value: string): string {
+function sanitizeString(value: string, limits: RedactionLimits): string {
   if (DATA_URL_PATTERN.test(value)) return REDACTED;
 
   const scrubbed = value.replace(TOKEN_SHAPED_PATTERN, REDACTED);
-  return scrubbed.length > MAX_STRING_LENGTH
-    ? `${scrubbed.slice(0, MAX_STRING_LENGTH)}…`
+  return scrubbed.length > limits.maxStringLength
+    ? `${scrubbed.slice(0, limits.maxStringLength)}…`
     : scrubbed;
 }
 
 function sanitizeValue(
   value: unknown,
   depth: number,
-  seen: WeakSet<object>
+  seen: WeakSet<object>,
+  limits: RedactionLimits
 ): unknown {
   if (value === null) return null;
 
   switch (typeof value) {
     case 'string':
-      return sanitizeString(value);
+      return sanitizeString(value, limits);
     case 'number':
       return Number.isFinite(value) ? value : String(value);
     case 'boolean':
@@ -82,26 +98,26 @@ function sanitizeValue(
 
   const objectValue = value as object;
   if (seen.has(objectValue)) return '[circular]';
-  if (depth >= MAX_DEPTH) return '[truncated]';
+  if (depth >= limits.maxDepth) return '[truncated]';
 
   seen.add(objectValue);
   try {
     if (Array.isArray(objectValue)) {
       return objectValue
-        .slice(0, MAX_ARRAY_ITEMS)
-        .map((item) => sanitizeValue(item, depth + 1, seen));
+        .slice(0, limits.maxArrayItems)
+        .map((item) => sanitizeValue(item, depth + 1, seen, limits));
     }
 
     const result: Record<string, unknown> = {};
     for (const [key, entry] of Object.entries(objectValue).slice(
       0,
-      MAX_OBJECT_KEYS
+      limits.maxObjectKeys
     )) {
       if (SENSITIVE_KEY_PATTERN.test(key)) {
         result[key] = REDACTED;
         continue;
       }
-      const sanitized = sanitizeValue(entry, depth + 1, seen);
+      const sanitized = sanitizeValue(entry, depth + 1, seen, limits);
       if (sanitized !== undefined) result[key] = sanitized;
     }
     return result;
@@ -115,8 +131,14 @@ function sanitizeValue(
  * error: credential-shaped keys are replaced, inline payloads are dropped
  * and the result is bounded in depth, breadth and string length.
  */
-export function sanitizeUazapiError(value: unknown): unknown {
-  return sanitizeValue(value, 0, new WeakSet<object>());
+export function sanitizeUazapiError(
+  value: unknown,
+  limits: Partial<RedactionLimits> = {}
+): unknown {
+  return sanitizeValue(value, 0, new WeakSet<object>(), {
+    ...DEFAULT_LIMITS,
+    ...limits,
+  });
 }
 
 /** Maps an HTTP status documented by UAZAPI onto a stable error kind. */

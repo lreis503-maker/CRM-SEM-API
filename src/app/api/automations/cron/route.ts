@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { resumePendingExecution } from '@/lib/automations/engine'
 import type { AutomationContext } from '@/lib/automations/engine'
+import { purgeExpiredWebhookQuarantine } from '@/lib/whatsapp/inbound/webhook-quarantine'
 
 /**
  * Drain due `automation_pending_executions` rows. Meant to be hit
@@ -69,6 +70,12 @@ export async function GET(request: Request) {
     })
     processed++
   }
+
+  // Expiring webhook quarantine rows has nothing to do with automations,
+  // but this is an authenticated job that runs on a schedule, and the
+  // purge self-throttles to once a day. Not awaited: a diagnostic
+  // cleanup must not delay or fail the drain.
+  void purgeExpiredWebhookQuarantine(admin)
 
   return NextResponse.json({ processed })
 }

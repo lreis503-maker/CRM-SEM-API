@@ -1,0 +1,361 @@
+/**
+ * UAZAPI webhook payload -> the provider-neutral envelope.
+ *
+ * The supplied contract types the webhook `data` as an open map and spells
+ * the event names two different ways, so this module reads defensively:
+ * it recognizes what the contract documents, and anything else becomes a
+ * quarantine result with a stable reason code. It never fills a gap with a
+ * guess — a half-understood payload would create a real contact, a real
+ * message and a real automation run from something we did not read.
+ *
+ * Three outcomes:
+ *   - `event`      — recognized; hand it to the shared processors.
+ *   - `ignored`    — recognized and deliberately not acted on (our own
+ *                    echo, a group, a lifecycle state we do not track).
+ *   - `quarantine` — not recognized; store a redacted sample and ack.
+ */
+
+import type {
+  NormalizedConnectionUpdate,
+  NormalizedContent,
+  NormalizedInboundEvent,
+  NormalizedInboundMessage,
+  NormalizedSender,
+  NormalizedStatusUpdate,
+} from './types';
+
+export type UazapiIgnoreReason =
+  'from_me' | 'sent_by_api' | 'group' | 'not_direct_chat' | 'untracked_status';
+
+export type UazapiQuarantineReason =
+  | 'body_not_an_object'
+  | 'unknown_event'
+  | 'missing_data'
+  | 'missing_message_id'
+  | 'missing_sender_identity'
+  | 'unknown_message_type'
+  | 'unknown_connection_state';
+
+export type UazapiNormalizeResult =
+  | { outcome: 'event'; event: NormalizedInboundEvent }
+  | { outcome: 'ignored'; reason: UazapiIgnoreReason }
+  | {
+      outcome: 'quarantine';
+      reasonCode: UazapiQuarantineReason;
+      eventName: string | null;
+    };
+
+/**
+ * The contract spells these both ways: the webhook subscription uses
+ * `messages` / `messages_update`, while the WebhookEvent schema enumerates
+ * `message` / `status`. Both are accepted rather than guessed at.
+ */
+const MESSAGE_EVENTS = new Set(['messages', 'message']);
+const STATUS_EVENTS = new Set(['messages_update', 'status']);
+const CONNECTION_EVENTS = new Set(['connection']);
+
+/**
+ * Message types this release understands, in both the plain spelling the
+ * contract shows and the protobuf spelling the same field sometimes
+ * carries. Anything absent here is quarantined, not approximated.
+ */
+const MESSAGE_TYPES: Record<string, NormalizedContent['type']> = {
+  text: 'text',
+  conversation: 'text',
+  extendedtextmessage: 'text',
+  image: 'image',
+  imagemessage: 'image',
+  sticker: 'image',
+  stickermessage: 'image',
+  video: 'video',
+  videomessage: 'video',
+  audio: 'audio',
+  audiomessage: 'audio',
+  ptt: 'audio',
+  myaudio: 'audio',
+  document: 'document',
+  documentmessage: 'document',
+  location: 'location',
+  locationmessage: 'location',
+};
+
+const STATUS_VALUES: Record<string, NormalizedStatusUpdate['status']> = {
+  sent: 'sent',
+  delivered: 'delivered',
+  read: 'read',
+  played: 'read',
+  failed: 'failed',
+  error: 'failed',
+};
+
+/** Lifecycle states that are real but not delivery outcomes. */
+const UNTRACKED_STATUS_VALUES = new Set([
+  'pending',
+  'queued',
+  'canceled',
+  'cancelled',
+]);
+
+const CONNECTION_STATES = new Set([
+  'disconnected',
+  'connecting',
+  'connected',
+  'hibernated',
+]);
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function asText(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0
+    ? value.trim()
+    : null;
+}
+
+function quarantine(
+  reasonCode: UazapiQuarantineReason,
+  eventName: string | null
+): UazapiNormalizeResult {
+  return { outcome: 'quarantine', reasonCode, eventName };
+}
+
+function ignored(reason: UazapiIgnoreReason): UazapiNormalizeResult {
+  return { outcome: 'ignored', reason };
+}
+
+/** The instance a payload claims to come from, for the route's check. */
+export function uazapiInstanceIdOf(payload: unknown): string | null {
+  const body = asRecord(payload);
+  if (!body) return null;
+  return asText(body.instance) ?? asText(body.instance_id);
+}
+
+function eventNameOf(body: Record<string, unknown>): string | null {
+  return asText(body.event) ?? asText(body.EventType) ?? asText(body.type);
+}
+
+/** UAZAPI timestamps are milliseconds; a missing one means "just now". */
+function timestampToIso(value: unknown): string {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return new Date(value).toISOString();
+  }
+  if (typeof value === 'string' && /^\d+$/.test(value)) {
+    return new Date(Number(value)).toISOString();
+  }
+  return new Date().toISOString();
+}
+
+/** `5511999999999@s.whatsapp.net` -> `5511999999999`. */
+function phoneFromJid(jid: string | null): string {
+  if (jid === null) return '';
+  const user = jid.split('@')[0]?.split(':')[0] ?? '';
+  return /^\d{8,15}$/.test(user) ? user : '';
+}
+
+function isGroupChat(chatId: string | null): boolean {
+  return chatId !== null && chatId.endsWith('@g.us');
+}
+
+function isDirectChat(chatId: string | null): boolean {
+  if (chatId === null) return true;
+  return chatId.endsWith('@s.whatsapp.net') || chatId.endsWith('@lid');
+}
+
+function normalizeSender(
+  data: Record<string, unknown>
+): NormalizedSender | null {
+  const senderPn = asText(data.sender_pn);
+  const senderLid = asText(data.sender_lid);
+  const sender = asText(data.sender);
+  const chatId = asText(data.chatid);
+
+  const phone =
+    phoneFromJid(senderPn) || phoneFromJid(sender) || phoneFromJid(chatId);
+
+  // A LID survives the contact changing phone number, so it is preferred
+  // as the stable identifier. A plain JID is the fallback.
+  const lid = senderLid ?? (sender?.endsWith('@lid') ? sender : null);
+  const jid = sender ?? senderPn ?? chatId;
+
+  const externalId = lid ?? (jid && jid.endsWith('@lid') ? jid : jid);
+  const externalIdKind = lid ? 'lid' : externalId ? 'jid' : null;
+
+  if (!phone && !externalId) return null;
+
+  const profileName = asText(data.senderName) ?? asText(data.pushName);
+
+  return {
+    phone,
+    externalId: externalId ?? null,
+    externalIdKind,
+    parentExternalId: null,
+    profileName,
+    displayName: profileName ?? phone ?? externalId ?? '',
+    username: null,
+  };
+}
+
+function normalizeContent(
+  data: Record<string, unknown>,
+  messageId: string,
+  type: NormalizedContent['type']
+): NormalizedContent {
+  const text = asText(data.text) ?? asText(data.caption);
+
+  if (type === 'text') {
+    return { type: 'text', text: text ?? '' };
+  }
+  if (type === 'location') {
+    return { type: 'location', text: text ?? '[location]' };
+  }
+  if (type === 'interactive') {
+    return { type: 'interactive', text: text ?? '', replyId: null };
+  }
+
+  const fileUrl = asText(data.fileURL) ?? asText(data.fileUrl);
+
+  return {
+    type,
+    text,
+    media: {
+      externalMediaId: messageId,
+      // With no link, the route asks /message/download for one.
+      locator: fileUrl ? 'provider_url' : 'provider_id',
+      locatorValue: fileUrl ?? messageId,
+      mimeType: asText(data.mimetype) ?? asText(data.mimeType),
+      fileName: asText(data.docName) ?? asText(data.fileName),
+      fileSize:
+        typeof data.fileSize === 'number' && Number.isFinite(data.fileSize)
+          ? data.fileSize
+          : null,
+    },
+  };
+}
+
+function normalizeMessage(
+  data: Record<string, unknown>,
+  eventName: string | null
+): UazapiNormalizeResult {
+  // These exclusions are configured at the provider too. They are checked
+  // again here because an automation answering our own send would loop,
+  // and group support is out of scope for this release.
+  if (data.fromMe === true) return ignored('from_me');
+  if (data.wasSentByApi === true) return ignored('sent_by_api');
+
+  const chatId = asText(data.chatid);
+  if (data.isGroup === true || isGroupChat(chatId)) return ignored('group');
+  if (!isDirectChat(chatId)) return ignored('not_direct_chat');
+
+  const messageId = asText(data.messageid) ?? asText(data.id);
+  if (messageId === null) {
+    return quarantine('missing_message_id', eventName);
+  }
+
+  const sender = normalizeSender(data);
+  if (sender === null) {
+    return quarantine('missing_sender_identity', eventName);
+  }
+
+  const rawType = asText(data.messageType) ?? asText(data.type);
+  const type = rawType ? MESSAGE_TYPES[rawType.toLowerCase()] : undefined;
+  if (!type) {
+    return quarantine('unknown_message_type', eventName);
+  }
+
+  const event: NormalizedInboundMessage = {
+    kind: 'message',
+    provider: 'uazapi',
+    externalMessageId: messageId,
+    occurredAt: timestampToIso(data.messageTimestamp),
+    fromMe: false,
+    isGroup: false,
+    sender,
+    content: normalizeContent(data, messageId, type),
+    replyToExternalId: asText(data.quoted),
+  };
+
+  return { outcome: 'event', event };
+}
+
+function normalizeStatus(
+  data: Record<string, unknown>,
+  eventName: string | null
+): UazapiNormalizeResult {
+  const messageId = asText(data.messageid) ?? asText(data.id);
+  if (messageId === null) {
+    return quarantine('missing_message_id', eventName);
+  }
+
+  const raw = (asText(data.status) ?? '').toLowerCase();
+  if (UNTRACKED_STATUS_VALUES.has(raw)) return ignored('untracked_status');
+
+  const status = STATUS_VALUES[raw];
+  if (!status) return quarantine('unknown_message_type', eventName);
+
+  const reason = asText(data.error);
+
+  const event: NormalizedStatusUpdate = {
+    kind: 'status',
+    provider: 'uazapi',
+    externalMessageId: messageId,
+    status,
+    occurredAt: timestampToIso(data.messageTimestamp),
+    // UAZAPI reports a human-readable reason, not a numeric code.
+    failure:
+      status === 'failed' && reason
+        ? { code: null, title: reason, details: null }
+        : null,
+  };
+
+  return { outcome: 'event', event };
+}
+
+function normalizeConnection(
+  data: Record<string, unknown>,
+  eventName: string | null
+): UazapiNormalizeResult {
+  const raw = (asText(data.status) ?? asText(data.state) ?? '').toLowerCase();
+  if (!CONNECTION_STATES.has(raw)) {
+    return quarantine('unknown_connection_state', eventName);
+  }
+
+  const event: NormalizedConnectionUpdate = {
+    kind: 'connection',
+    provider: 'uazapi',
+    status: raw as NormalizedConnectionUpdate['status'],
+    occurredAt: timestampToIso(data.messageTimestamp),
+    phone: phoneFromJid(asText(data.owner) ?? asText(data.jid)) || null,
+    displayName: asText(data.profileName),
+    avatarUrl: asText(data.profilePicUrl),
+  };
+
+  return { outcome: 'event', event };
+}
+
+export function normalizeUazapiWebhook(
+  payload: unknown
+): UazapiNormalizeResult {
+  const body = asRecord(payload);
+  if (!body) return quarantine('body_not_an_object', null);
+
+  const eventName = eventNameOf(body);
+  if (eventName === null) return quarantine('unknown_event', null);
+
+  const isMessage = MESSAGE_EVENTS.has(eventName);
+  const isStatus = STATUS_EVENTS.has(eventName);
+  const isConnection = CONNECTION_EVENTS.has(eventName);
+
+  if (!isMessage && !isStatus && !isConnection) {
+    return quarantine('unknown_event', eventName);
+  }
+
+  const data = asRecord(body.data);
+  if (!data) return quarantine('missing_data', eventName);
+
+  if (isMessage) return normalizeMessage(data, eventName);
+  if (isStatus) return normalizeStatus(data, eventName);
+  return normalizeConnection(data, eventName);
+}
