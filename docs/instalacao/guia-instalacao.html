@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Guia de instalação do CRM</title>
+    <style>
+      @page {
+        size: A4;
+        margin: 18mm 16mm 16mm 16mm;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
+        font-size: 11pt;
+        line-height: 1.55;
+        color: #1a1a1a;
+      }
+
+      h1 {
+        font-size: 24pt;
+        margin: 0 0 4px;
+        letter-spacing: -0.4px;
+      }
+
+      .sub {
+        font-size: 11pt;
+        color: #555;
+        margin: 0 0 22px;
+      }
+
+      h2 {
+        font-size: 15pt;
+        margin: 26px 0 10px;
+        padding: 7px 12px;
+        background: #1f2937;
+        color: #fff;
+        border-radius: 4px;
+        page-break-after: avoid;
+      }
+
+      h3 {
+        font-size: 12pt;
+        margin: 18px 0 6px;
+        page-break-after: avoid;
+      }
+
+      p {
+        margin: 0 0 9px;
+      }
+
+      ol,
+      ul {
+        margin: 0 0 10px;
+        padding-left: 22px;
+      }
+
+      li {
+        margin-bottom: 6px;
+      }
+
+      code {
+        font-family: Consolas, 'Courier New', monospace;
+        font-size: 10pt;
+        background: #eef1f5;
+        padding: 1px 5px;
+        border-radius: 3px;
+        word-break: break-all;
+      }
+
+      pre {
+        font-family: Consolas, 'Courier New', monospace;
+        font-size: 9pt;
+        background: #f4f6f8;
+        border: 1px solid #d7dde5;
+        border-left: 4px solid #1f2937;
+        border-radius: 4px;
+        padding: 10px 12px;
+        margin: 0 0 12px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0 0 14px;
+        font-size: 10pt;
+      }
+
+      th,
+      td {
+        border: 1px solid #ccd3dc;
+        padding: 7px 9px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: #eef1f5;
+        font-weight: 600;
+      }
+
+      .aviso {
+        border: 1px solid #e0b400;
+        background: #fff9e3;
+        border-left: 4px solid #e0b400;
+        border-radius: 4px;
+        padding: 10px 12px;
+        margin: 0 0 14px;
+      }
+
+      /* Only the box title, never a strong inside the body text. */
+      .aviso > strong:first-child {
+        display: block;
+        margin-bottom: 3px;
+      }
+
+      .dica {
+        border: 1px solid #b9c6d4;
+        background: #f2f6fa;
+        border-left: 4px solid #3b6ea5;
+        border-radius: 4px;
+        padding: 10px 12px;
+        margin: 0 0 14px;
+      }
+
+      .dica > strong:first-child {
+        display: block;
+        margin-bottom: 3px;
+      }
+
+      .caixa {
+        border: 1px dashed #9aa5b1;
+        border-radius: 4px;
+        padding: 10px 12px;
+        margin: 0 0 14px;
+        background: #fafbfc;
+      }
+
+      .anotar {
+        font-size: 10pt;
+        color: #444;
+      }
+
+      .anotar div {
+        border-bottom: 1px solid #b9c0c8;
+        margin: 9px 0 0;
+        padding-bottom: 2px;
+      }
+
+      .quebra {
+        page-break-before: always;
+      }
+
+      .tempo {
+        font-size: 9.5pt;
+        color: #666;
+        font-weight: normal;
+      }
+
+      footer {
+        margin-top: 26px;
+        padding-top: 10px;
+        border-top: 1px solid #ccd3dc;
+        font-size: 9pt;
+        color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Guia de instalação do CRM</h1>
+    <p class="sub">
+      Passo a passo completo, do zero. Você não precisa saber programar — é tudo
+      copiar, colar e clicar.
+    </p>
+
+    <h2>Antes de começar</h2>
+
+    <p>
+      Reserve cerca de <strong>40 minutos</strong>. Você vai criar três contas
+      gratuitas:
+    </p>
+
+    <table>
+      <tr>
+        <th style="width: 22%">Serviço</th>
+        <th style="width: 30%">Para quê</th>
+        <th>Endereço</th>
+      </tr>
+      <tr>
+        <td><strong>GitHub</strong></td>
+        <td>guarda o código</td>
+        <td><code>github.com</code></td>
+      </tr>
+      <tr>
+        <td><strong>Supabase</strong></td>
+        <td>o banco de dados</td>
+        <td><code>supabase.com</code></td>
+      </tr>
+      <tr>
+        <td><strong>Railway</strong></td>
+        <td>coloca o site no ar</td>
+        <td><code>railway.app</code></td>
+      </tr>
+    </table>
+
+    <div class="aviso">
+      <strong>Sobre pagamento</strong>
+      GitHub e Supabase têm plano gratuito que basta para começar. O Railway
+      costuma pedir um cartão de crédito para liberar a publicação — confira os
+      valores no site deles antes de continuar.
+    </div>
+
+    <div class="dica">
+      <strong>Deixe um bloco de notas aberto</strong>
+      Ao longo do caminho você vai copiar 5 valores. Cole cada um no bloco de
+      notas assim que aparecer: alguns só são exibidos uma vez, e ficar voltando
+      atrás é o que mais atrasa essa instalação.
+    </div>
+
+    <div class="caixa anotar">
+      <strong>Anote aqui enquanto avança:</strong>
+      <div>1. Senha do banco Supabase:</div>
+      <div>2. Project URL:</div>
+      <div>3. Chave anon public:</div>
+      <div>4. Chave service_role:</div>
+      <div>5. Chave de criptografia (64 caracteres):</div>
+      <div>6. Endereço do site no Railway:</div>
+    </div>
+
+    <h2>
+      Parte 1 — Pegar o código no GitHub <span class="tempo">(5 min)</span>
+    </h2>
+
+    <ol>
+      <li>
+        Entre em <code>github.com</code> e clique em <strong>Sign up</strong>.
+        Use seu e-mail e crie uma senha.
+      </li>
+      <li>Confirme o e-mail que o GitHub enviar.</li>
+      <li>
+        Peça para quem te passou este guia
+        <strong>dar acesso ao repositório do CRM</strong>. Você vai receber um
+        convite por e-mail — aceite.
+      </li>
+      <li>Abra o repositório e confirme que consegue ver os arquivos.</li>
+    </ol>
+
+    <div class="dica">
+      <strong>Quer sua própria cópia?</strong>
+      No repositório, clique em <strong>Fork</strong> (canto superior direito).
+      Isso cria uma cópia na sua conta, que você controla sozinho.
+    </div>
+
+    <h2>
+      Parte 2 — Criar o banco no Supabase <span class="tempo">(10 min)</span>
+    </h2>
+
+    <ol>
+      <li>
+        Entre em <code>supabase.com</code> e clique em
+        <strong>Start your project</strong>.
+      </li>
+      <li>Escolha <strong>Continue with GitHub</strong> e autorize.</li>
+      <li>Clique em <strong>New project</strong>.</li>
+      <li>
+        Preencha:
+        <ul>
+          <li><strong>Name:</strong> <code>crm</code></li>
+          <li>
+            <strong>Database Password:</strong> clique em
+            <strong>Generate a password</strong> e
+            <strong>copie para o bloco de notas</strong>
+            (valor&nbsp;1). Ela não é mostrada de novo.
+          </li>
+          <li>
+            <strong>Region:</strong> <code>South America (São Paulo)</code> — o
+            mais perto do Brasil, deixa o sistema mais rápido.
+          </li>
+        </ul>
+      </li>
+      <li>
+        Clique em <strong>Create new project</strong> e espere cerca de 2
+        minutos.
+      </li>
+    </ol>
+
+    <h2 class="quebra">
+      Parte 3 — Criar as tabelas <span class="tempo">(10 min)</span>
+    </h2>
+
+    <p>
+      O banco nasce vazio. Agora você vai colar 4 arquivos de SQL que criam
+      tudo: tabelas, permissões e pastas de arquivos.
+    </p>
+
+    <p>Os arquivos estão no repositório, na pasta:</p>
+
+    <pre>supabase/instalacao/</pre>
+
+    <p>São estes quatro, <strong>nesta ordem</strong>:</p>
+
+    <pre>
+parte-1-de-4.sql
+parte-2-de-4.sql
+parte-3-de-4.sql
+parte-4-de-4.sql</pre>
+
+    <h3>Como colar cada um</h3>
+
+    <ol>
+      <li>No Supabase, menu da esquerda → <strong>SQL Editor</strong>.</li>
+      <li>Clique em <strong>New query</strong>.</li>
+      <li>
+        Abra o arquivo <code>parte-1-de-4.sql</code> no GitHub e clique no botão
+        <strong>Copy raw file</strong> (ícone de duas folhas, no topo do
+        arquivo).
+      </li>
+      <li>
+        Volte ao Supabase, clique na área de texto e cole (<code>Ctrl+V</code>).
+      </li>
+      <li>Clique em <strong>Run</strong> (ou <code>Ctrl+Enter</code>).</li>
+      <li>Espere aparecer <strong>Success</strong> na parte de baixo.</li>
+      <li>
+        Apague tudo (<code>Ctrl+A</code>, depois <code>Delete</code>) e repita
+        com a parte 2, depois a 3, depois a 4.
+      </li>
+    </ol>
+
+    <div class="aviso">
+      <strong>Se der erro em alguma parte, pare</strong>
+      Não pule para a próxima. Tire uma foto da mensagem de erro e mande para
+      quem te passou este guia. Rodar as partes fora de ordem cria um banco pela
+      metade, e o site não vai funcionar direito.
+    </div>
+
+    <div class="dica">
+      <strong>Rodou duas vezes sem querer?</strong>
+      Não tem problema. Esses arquivos podem ser executados de novo sem apagar
+      nada nem duplicar nada. Na dúvida, volte para a parte 1 e rode as quatro
+      na ordem.
+    </div>
+
+    <h2>
+      Parte 4 — Copiar as 3 chaves do Supabase
+      <span class="tempo">(3 min)</span>
+    </h2>
+
+    <ol>
+      <li>
+        No Supabase, clique na <strong>engrenagem</strong> (Project Settings),
+        no canto inferior esquerdo.
+      </li>
+      <li>
+        Clique em <strong>API</strong> (em alguns projetos aparece como
+        <strong>API Keys</strong>).
+      </li>
+      <li>Copie os três valores para o bloco de notas:</li>
+    </ol>
+
+    <table>
+      <tr>
+        <th style="width: 34%">O que copiar</th>
+        <th>Vira a variável</th>
+      </tr>
+      <tr>
+        <td>
+          <strong>Project URL</strong><br />(começa com <code>https://</code>)
+        </td>
+        <td><code>NEXT_PUBLIC_SUPABASE_URL</code></td>
+      </tr>
+      <tr>
+        <td><strong>anon</strong> <em>public</em></td>
+        <td><code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code></td>
+      </tr>
+      <tr>
+        <td><strong>service_role</strong> <em>secret</em></td>
+        <td><code>SUPABASE_SERVICE_ROLE_KEY</code></td>
+      </tr>
+    </table>
+
+    <div class="aviso">
+      <strong>A chave service_role é secreta</strong>
+      Ela dá acesso total ao banco, ignorando todas as permissões. Nunca mande
+      por WhatsApp, nunca poste em grupo, nunca coloque num print. Ela só vai
+      para o painel do Railway, na Parte 7.
+    </div>
+
+    <h2>
+      Parte 5 — Gerar a chave de criptografia <span class="tempo">(2 min)</span>
+    </h2>
+
+    <p>
+      O CRM guarda as senhas do WhatsApp criptografadas. Para isso ele precisa
+      de uma chave só sua, com 64 caracteres.
+    </p>
+
+    <p>
+      No Windows, abra o <strong>PowerShell</strong> (tecla Windows, digite
+      <code>powershell</code>, Enter) e cole esta linha inteira:
+    </p>
+
+    <pre>
+$b = New-Object byte[] 32
+[System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
+($b | ForEach-Object { $_.ToString('x2') }) -join ''</pre>
+
+    <p>
+      Vai aparecer uma sequência de 64 letras e números. Copie para o bloco de
+      notas (valor&nbsp;5).
+    </p>
+
+    <div class="aviso">
+      <strong>Guarde essa chave</strong>
+      Se você trocá-la depois, todas as conexões de WhatsApp param de funcionar
+      e precisam ser refeitas. Não use uma chave que alguém te passou: ela tem
+      que ser gerada por você.
+    </div>
+
+    <h2 class="quebra">
+      Parte 6 — Publicar no Railway <span class="tempo">(8 min)</span>
+    </h2>
+
+    <ol>
+      <li>
+        Entre em <code>railway.app</code> e clique em <strong>Login</strong> →
+        <strong>GitHub</strong>.
+      </li>
+      <li>Clique em <strong>New Project</strong>.</li>
+      <li>Escolha <strong>Deploy from GitHub repo</strong>.</li>
+      <li>
+        Selecione o repositório do CRM. Se ele não aparecer, clique em
+        <strong>Configure GitHub App</strong> e libere o acesso.
+      </li>
+      <li>
+        O Railway vai tentar publicar e <strong>vai falhar</strong>. Isso é
+        esperado — as variáveis ainda não existem.
+      </li>
+    </ol>
+
+    <h3>Escolher a versão certa do código</h3>
+
+    <ol>
+      <li>Clique no serviço que apareceu → aba <strong>Settings</strong>.</li>
+      <li>Procure <strong>Source</strong> → <strong>Branch</strong>.</li>
+      <li>Selecione: <code>feat/uazapi-whatsapp-provider</code></li>
+    </ol>
+
+    <div class="aviso">
+      <strong>Esse passo é fácil de esquecer</strong>
+      A conexão do WhatsApp por QR Code está nessa versão do código. Se ficar na
+      <code>main</code>, o site sobe normalmente mas a opção de QR Code
+      simplesmente não aparece na tela — sem nenhuma mensagem explicando por
+      quê. Confirme antes de seguir.
+    </div>
+
+    <h2>Parte 7 — Colocar as variáveis <span class="tempo">(5 min)</span></h2>
+
+    <p>
+      No serviço do Railway, abra a aba <strong>Variables</strong> e clique em
+      <strong>New Variable</strong> para cada linha:
+    </p>
+
+    <table>
+      <tr>
+        <th style="width: 45%">Nome</th>
+        <th>Valor</th>
+      </tr>
+      <tr>
+        <td><code>NEXT_PUBLIC_SUPABASE_URL</code></td>
+        <td>valor 2 do bloco de notas</td>
+      </tr>
+      <tr>
+        <td><code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code></td>
+        <td>valor 3</td>
+      </tr>
+      <tr>
+        <td><code>SUPABASE_SERVICE_ROLE_KEY</code></td>
+        <td>valor 4</td>
+      </tr>
+      <tr>
+        <td><code>ENCRYPTION_KEY</code></td>
+        <td>valor 5 (os 64 caracteres)</td>
+      </tr>
+      <tr>
+        <td><code>NEXT_PUBLIC_APP_LOCALE</code></td>
+        <td><code>pt-BR</code></td>
+      </tr>
+    </table>
+
+    <p>
+      Falta ainda o <code>NEXT_PUBLIC_SITE_URL</code>, que só existe depois da
+      próxima parte.
+    </p>
+
+    <h2>
+      Parte 8 — Gerar o endereço do site <span class="tempo">(3 min)</span>
+    </h2>
+
+    <ol>
+      <li>
+        Aba <strong>Settings</strong> → seção <strong>Networking</strong>.
+      </li>
+      <li>Clique em <strong>Generate Domain</strong>.</li>
+      <li>
+        Vai aparecer um endereço parecido com
+        <code>seu-projeto.up.railway.app</code>. Copie (valor&nbsp;6).
+      </li>
+      <li>
+        Volte em <strong>Variables</strong> e crie a última:
+        <pre>NEXT_PUBLIC_SITE_URL = https://seu-projeto.up.railway.app</pre>
+      </li>
+      <li>
+        Clique em <strong>Deploy</strong> (ou <strong>Redeploy</strong>) e
+        espere o build terminar — uns 3 a 5 minutos.
+      </li>
+    </ol>
+
+    <div class="aviso">
+      <strong>O erro mais comum desta instalação inteira</strong>
+      O <code>NEXT_PUBLIC_SITE_URL</code> precisa começar com
+      <code>https://</code> e <strong>não</strong> pode terminar com barra.
+      <br /><br />
+      Certo: <code>https://meu-crm.up.railway.app</code><br />
+      Errado: <code>meu-crm.up.railway.app</code> (falta o https)<br />
+      Errado: <code>https://meu-crm.up.railway.app/</code> (barra no fim)
+      <br /><br />
+      Se errar, o site abre normalmente e parece funcionar — mas o WhatsApp
+      nunca recebe mensagem nenhuma, e não aparece erro em lugar nenhum.
+    </div>
+
+    <h2 class="quebra">
+      Parte 9 — Avisar o Supabase qual é o endereço
+      <span class="tempo">(2 min)</span>
+    </h2>
+
+    <p>
+      O Supabase envia o e-mail de confirmação de cadastro com um link. Ele
+      precisa saber para onde esse link aponta.
+    </p>
+
+    <ol>
+      <li>No Supabase, menu da esquerda → <strong>Authentication</strong>.</li>
+      <li>Clique em <strong>URL Configuration</strong>.</li>
+      <li>
+        Em <strong>Site URL</strong>, coloque o endereço do Railway
+        (valor&nbsp;6), do mesmo jeito: com <code>https://</code> e sem barra no
+        fim.
+      </li>
+      <li>Clique em <strong>Save</strong>.</li>
+    </ol>
+
+    <h2>Parte 10 — Criar seu usuário <span class="tempo">(3 min)</span></h2>
+
+    <ol>
+      <li>Abra o endereço do Railway no navegador.</li>
+      <li>Clique em <strong>Criar conta</strong>.</li>
+      <li>Preencha nome, e-mail e senha.</li>
+      <li>Abra seu e-mail e clique no link de confirmação.</li>
+      <li>Volte ao site e entre com e-mail e senha.</li>
+    </ol>
+
+    <p>Pronto — o CRM está funcionando.</p>
+
+    <div class="dica">
+      <strong>O e-mail não chegou?</strong>
+      Olhe o spam. O Supabase limita quantos e-mails envia por hora no plano
+      gratuito, então espere alguns minutos antes de tentar de novo.
+    </div>
+
+    <h2>
+      Parte 11 — Ligar o WhatsApp por QR Code
+      <span class="tempo">(opcional, 10 min)</span>
+    </h2>
+
+    <p>
+      Esta parte é opcional e depende de uma conta na UAZAPI, que é um serviço
+      pago à parte. Sem ela, o CRM funciona normalmente — só não conecta o
+      WhatsApp por QR Code.
+    </p>
+
+    <ol>
+      <li>
+        Crie sua conta no painel da UAZAPI e copie o
+        <strong>token de administrador</strong> da instalação.
+      </li>
+      <li>
+        No Railway, aba <strong>Variables</strong>, acrescente três variáveis:
+      </li>
+    </ol>
+
+    <table>
+      <tr>
+        <th style="width: 45%">Nome</th>
+        <th>Valor</th>
+      </tr>
+      <tr>
+        <td><code>UAZAPI_ENABLED</code></td>
+        <td><code>true</code></td>
+      </tr>
+      <tr>
+        <td><code>UAZAPI_BASE_URL</code></td>
+        <td>o endereço da sua UAZAPI, com <code>https://</code></td>
+      </tr>
+      <tr>
+        <td><code>UAZAPI_ADMIN_TOKEN</code></td>
+        <td>o token de administrador</td>
+      </tr>
+    </table>
+
+    <ol start="3">
+      <li>Clique em <strong>Redeploy</strong> e espere terminar.</li>
+      <li>No CRM, vá em <strong>Configurações → WhatsApp</strong>.</li>
+      <li>
+        Escolha <strong>Conexão por QR Code</strong> e clique em
+        <strong>Conectar</strong>.
+      </li>
+      <li>
+        No celular: WhatsApp → <strong>Aparelhos conectados</strong> →
+        <strong>Conectar aparelho</strong> → leia o código da tela.
+      </li>
+      <li>
+        Quando aparecer <strong>Conectado</strong>, clique em
+        <strong>Baixar histórico</strong> para trazer as conversas que já
+        existem no celular.
+      </li>
+    </ol>
+
+    <div class="aviso">
+      <strong>O token de administrador é secreto</strong>
+      Ele controla a instalação inteira da UAZAPI, não só a sua conta. Trate com
+      o mesmo cuidado da chave <code>service_role</code>: nada de print, nada de
+      grupo de WhatsApp.
+    </div>
+
+    <h2 class="quebra">Deu problema? Comece por aqui</h2>
+
+    <table>
+      <tr>
+        <th style="width: 34%">O que você vê</th>
+        <th style="width: 30%">Causa provável</th>
+        <th>O que fazer</th>
+      </tr>
+      <tr>
+        <td>O build do Railway falha</td>
+        <td>falta alguma variável</td>
+        <td>
+          Confira as 6 variáveis da Parte 7 e 8, letra por letra. Depois
+          Redeploy.
+        </td>
+      </tr>
+      <tr>
+        <td>Site abre mas dá erro ao entrar</td>
+        <td>SQL não rodou inteiro</td>
+        <td>Volte à Parte 3 e rode as 4 partes na ordem.</td>
+      </tr>
+      <tr>
+        <td>E-mail de confirmação não chega</td>
+        <td>limite do plano gratuito</td>
+        <td>Olhe o spam e espere alguns minutos.</td>
+      </tr>
+      <tr>
+        <td>Link do e-mail leva para o lugar errado</td>
+        <td>Site URL não configurada</td>
+        <td>Refaça a Parte 9.</td>
+      </tr>
+      <tr>
+        <td>A opção de QR Code aparece apagada</td>
+        <td>faltam as variáveis da UAZAPI, ou branch errada</td>
+        <td>Confira a Parte 11 e a branch na Parte 6.</td>
+      </tr>
+      <tr>
+        <td>Conectou, mas não chega mensagem</td>
+        <td>NEXT_PUBLIC_SITE_URL errada</td>
+        <td>
+          Confira o <code>https://</code> e a barra no fim (Parte 8). Corrija,
+          Redeploy e reconecte.
+        </td>
+      </tr>
+      <tr>
+        <td>Mensagem de grupo não aparece</td>
+        <td>conexão feita numa versão antiga</td>
+        <td>
+          Configurações → WhatsApp → <strong>Sincronizar configurações</strong>.
+        </td>
+      </tr>
+    </table>
+
+    <h2>Resumo do que você configurou</h2>
+
+    <table>
+      <tr>
+        <th style="width: 45%">Variável</th>
+        <th>De onde veio</th>
+      </tr>
+      <tr>
+        <td><code>NEXT_PUBLIC_SUPABASE_URL</code></td>
+        <td>Supabase → Settings → API</td>
+      </tr>
+      <tr>
+        <td><code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code></td>
+        <td>Supabase → Settings → API</td>
+      </tr>
+      <tr>
+        <td><code>SUPABASE_SERVICE_ROLE_KEY</code></td>
+        <td>Supabase → Settings → API (secreta)</td>
+      </tr>
+      <tr>
+        <td><code>ENCRYPTION_KEY</code></td>
+        <td>gerada por você no PowerShell (secreta)</td>
+      </tr>
+      <tr>
+        <td><code>NEXT_PUBLIC_SITE_URL</code></td>
+        <td>Railway → Settings → Networking</td>
+      </tr>
+      <tr>
+        <td><code>NEXT_PUBLIC_APP_LOCALE</code></td>
+        <td><code>pt-BR</code></td>
+      </tr>
+      <tr>
+        <td>
+          <code>UAZAPI_ENABLED</code> / <code>UAZAPI_BASE_URL</code> /
+          <code>UAZAPI_ADMIN_TOKEN</code>
+        </td>
+        <td>opcionais — painel da UAZAPI</td>
+      </tr>
+    </table>
+
+    <footer>
+      Guia de instalação do CRM. Os arquivos de banco de dados citados na Parte
+      3 ficam em <code>supabase/instalacao/</code>, no repositório. Documentação
+      técnica completa do WhatsApp em <code>docs/uazapi.md</code>.
+    </footer>
+  </body>
+</html>
