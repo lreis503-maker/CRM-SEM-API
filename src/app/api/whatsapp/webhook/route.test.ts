@@ -53,168 +53,147 @@ vi.mock('next/server', () => ({
   },
 }))
 
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: () => ({
-    from(table: string) {
-      switch (table) {
-        case 'whatsapp_config':
-          return {
-            select: () => ({
-              eq: () =>
-                Promise.resolve({
-                  data: [
-                    {
-                      account_id: 'acc-1',
-                      user_id: 'user-1',
-                      access_token: 'enc',
-                      mirror_inbound_media: h.state.mirrorInboundMedia,
-                    },
-                  ],
-                  error: null,
-                }),
-            }),
-          }
-        case 'conversations':
-          // findOrCreateConversation: select().eq().eq().order().limit()
-          return {
-            select: () => ({
-              eq: () => ({
-                eq: () => ({
-                  order: () => ({
-                    limit: () =>
-                      Promise.resolve({
-                        data: [h.state.conversation],
-                        error: null,
-                      }),
-                  }),
-                }),
-              }),
-            }),
-          }
-        case 'broadcast_recipients':
-          // Two chains land here:
-          //   flagBroadcastReplyIfAny: select().eq().eq().in().order().limit()
-          //   handleStatusUpdate:      select().eq().maybeSingle(), then
-          //                            update().eq()
-          return {
-            select: () => ({
-              eq: () => ({
-                eq: () => ({
-                  in: () => ({
-                    order: () => ({
-                      limit: () =>
-                        Promise.resolve({ data: [], error: null }),
-                    }),
-                  }),
-                }),
-                maybeSingle: () =>
-                  Promise.resolve({
-                    data: h.state.broadcastRecipient,
-                    error: null,
-                  }),
-              }),
-            }),
-            update: (patch: Record<string, unknown>) => {
+vi.mock('@supabase/supabase-js', () => {
+  // A chainable PostgREST-shaped builder. Filters (`eq`, `in`, `order`,
+  // `limit`) return the builder, so the fake does not have to mirror the
+  // exact number of filters a query happens to use — which is what made
+  // it break the moment every external-id lookup gained `.eq('provider')`.
+  // Terminal steps (`maybeSingle`, `single`, or a bare await) resolve.
+  type Resolver = () => { data?: unknown; count?: number; error: unknown }
+  interface Builder {
+    select: (columns?: string, options?: { head?: boolean }) => Builder
+    eq: () => Builder
+    in: () => Builder
+    order: () => Builder
+    limit: () => Builder
+    maybeSingle: () => Promise<unknown>
+    single: () => Promise<unknown>
+    insert: (row: Record<string, unknown>) => Builder
+    update: (row: Record<string, unknown>) => Builder
+    upsert: (row: Record<string, unknown>, options: unknown) => Builder
+    then: (resolve: (value: unknown) => unknown) => unknown
+  }
+
+  function makeBuilder(resolve: Resolver): Builder {
+    const builder: Builder = {
+      select: () => builder,
+      eq: () => builder,
+      in: () => builder,
+      order: () => builder,
+      limit: () => builder,
+      maybeSingle: async () => resolve(),
+      single: async () => resolve(),
+      insert: () => builder,
+      update: () => builder,
+      upsert: () => builder,
+      then: (onFulfilled) => onFulfilled(resolve()),
+    }
+    return builder
+  }
+
+  return {
+    createClient: () => ({
+      from(table: string) {
+        switch (table) {
+          case 'whatsapp_config':
+            return makeBuilder(() => ({
+              data: [
+                {
+                  account_id: 'acc-1',
+                  user_id: 'user-1',
+                  access_token: 'enc',
+                  mirror_inbound_media: h.state.mirrorInboundMedia,
+                },
+              ],
+              error: null,
+            }))
+
+          case 'conversations':
+            // findOrCreateConversation reads a list and creates on miss.
+            return makeBuilder(() => ({
+              data: [h.state.conversation],
+              error: null,
+            }))
+
+          case 'broadcast_recipients': {
+            // Two reads land here: flagBroadcastReplyIfAny (a list) and the
+            // status mirror (a single row). The list read ends in a bare
+            // await, the single read in maybeSingle.
+            const builder = makeBuilder(() => ({ data: [], error: null }))
+            builder.maybeSingle = async () => ({
+              data: h.state.broadcastRecipient,
+              error: null,
+            })
+            builder.update = (patch: Record<string, unknown>) => {
               h.state.recipientUpdates.push(patch)
-              return { eq: () => Promise.resolve({ error: null }) }
-            },
+              return makeBuilder(() => ({ error: null }))
+            }
+            return builder
           }
-        case 'contacts':
-          // Three chains land here, all from findOrCreateContact:
-          //   findContactByWaUserId: select('*').eq().eq().maybeSingle()
-          //   identity backfill:     update().eq().select().maybeSingle()
-          //   create:                insert().select().single()
-          return {
-            select: () => ({
-              eq: () => ({
-                eq: () => ({
-                  maybeSingle: () =>
-                    Promise.resolve({
-                      data: h.state.contactByWaUserId,
-                      error: null,
-                    }),
-                }),
-              }),
-            }),
-            update: (patch: Record<string, unknown>) => {
+
+          case 'contacts': {
+            const builder = makeBuilder(() => ({
+              data: h.state.contactByWaUserId,
+              error: null,
+            }))
+            builder.update = (patch: Record<string, unknown>) => {
               h.state.contactUpdates.push(patch)
-              return {
-                eq: () => ({
-                  select: () => ({
-                    maybeSingle: () =>
-                      Promise.resolve({ data: null, error: null }),
-                  }),
-                }),
-              }
-            },
-            insert: (row: Record<string, unknown>) => {
+              return makeBuilder(() => ({ data: null, error: null }))
+            }
+            builder.insert = (row: Record<string, unknown>) => {
               h.state.contactInserts.push(row)
-              return {
-                select: () => ({
-                  single: () =>
-                    Promise.resolve({
-                      data: { id: 'contact-new', ...row },
-                      error: null,
-                    }),
-                }),
-              }
-            },
+              return makeBuilder(() => ({
+                data: { id: 'contact-new', ...row },
+                error: null,
+              }))
+            }
+            return builder
           }
-        case 'messages':
-          return {
-            // Two different chains land here, told apart by the count
-            // option: the prior-message count (head request) and the
-            // reply-context parent lookup.
-            select: (_columns: string, options?: { head?: boolean }) =>
-              options?.head
-                ? // priorCustomerMsgCount: select('id',{count,head}).eq().eq()
-                  {
-                    eq: () => ({
-                      eq: () =>
-                        Promise.resolve({
-                          count: h.state.priorCustomerMsgCount,
-                          error: null,
-                        }),
-                    }),
-                  }
-                : // lookupInternalIdByMetaId: select('id').eq().eq().maybeSingle()
-                  // handleStatusUpdate fan-out: select().eq().limit().maybeSingle()
-                  {
-                    eq: () => ({
-                      eq: () => ({
-                        maybeSingle: () =>
-                          Promise.resolve({
-                            data: h.state.replyContextParent,
-                            error: null,
-                          }),
-                      }),
-                      limit: () => ({
-                        maybeSingle: () =>
-                          Promise.resolve({ data: null, error: null }),
-                      }),
-                    }),
-                  },
-            // Status webhook mirror (#535): update(...).eq('message_id', ...)
-            update: (patch: Record<string, unknown>) => {
+
+          case 'messages': {
+            // Three reads land here, told apart by how they finish:
+            //   priorCustomerMsgCount — head request, bare await
+            //   reply-context parent  — maybeSingle
+            //   status fan-out        — limit().maybeSingle()
+            let headRequest = false
+            let limited = false
+            const builder = makeBuilder(() => ({ data: null, error: null }))
+            builder.select = (_columns?: string, options?: { head?: boolean }) => {
+              headRequest = options?.head === true
+              return builder
+            }
+            builder.limit = () => {
+              limited = true
+              return builder
+            }
+            builder.then = (onFulfilled) =>
+              onFulfilled(
+                headRequest
+                  ? { count: h.state.priorCustomerMsgCount, error: null }
+                  : { data: null, error: null },
+              )
+            builder.maybeSingle = async () =>
+              limited
+                ? { data: null, error: null }
+                : { data: h.state.replyContextParent, error: null }
+            builder.update = (patch: Record<string, unknown>) => {
               h.state.messageUpdates.push(patch)
-              return { eq: () => Promise.resolve({ error: null }) }
-            },
-            // Idempotent insert: upsert(...).select('id')
-            upsert: (row: Record<string, unknown>, options: unknown) => {
+              return makeBuilder(() => ({ error: null }))
+            }
+            builder.upsert = (row: Record<string, unknown>, options: unknown) => {
               h.state.upsertCalls.push({ row, options })
-              return {
-                select: () =>
-                  Promise.resolve({
-                    data: h.state.messageUpsertResult,
-                    error: null,
-                  }),
-              }
-            },
+              return makeBuilder(() => ({
+                data: h.state.messageUpsertResult,
+                error: null,
+              }))
+            }
+            return builder
           }
-        default:
-          throw new Error(`unexpected table: ${table}`)
-      }
-    },
+
+          default:
+            throw new Error(`unexpected table: ${table}`)
+        }
+      },
     rpc: (name: string, args: Record<string, unknown>) => {
       h.state.rpcCalls.push({ name, args })
       return Promise.resolve({ data: null, error: null })
@@ -237,8 +216,9 @@ vi.mock('@supabase/supabase-js', () => ({
         }
       },
     },
-  }),
-}))
+    }),
+  }
+})
 
 vi.mock('@/lib/whatsapp/encryption', () => ({
   decrypt: () => 'plain-token',
@@ -415,7 +395,9 @@ describe('inbound webhook: idempotent insert (#367)', () => {
     // target — not a bare insert.
     expect(h.state.upsertCalls).toHaveLength(1)
     expect(h.state.upsertCalls[0].options).toMatchObject({
-      onConflict: 'conversation_id,message_id',
+      // Provider-aware since migration 043: the same provider id from two
+      // different providers must not collide after a provider switch.
+      onConflict: 'conversation_id,provider,message_id',
       ignoreDuplicates: true,
     })
     // Downstream side effects ran exactly once.
