@@ -7,7 +7,9 @@ export async function GET() {
   try {
     const { supabase, accountId } = await requireRole('viewer');
     const snapshot = await loadAccountCapabilitySnapshot(
-      supabase as unknown as Parameters<typeof loadAccountCapabilitySnapshot>[0],
+      supabase as unknown as Parameters<
+        typeof loadAccountCapabilitySnapshot
+      >[0],
       accountId,
       process.env
     );

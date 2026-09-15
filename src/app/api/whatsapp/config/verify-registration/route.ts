@@ -71,6 +71,20 @@ export async function GET() {
     })
   }
 
+  // Every check below is about Meta's registration and subscription
+  // model, and `access_token` is null on a UAZAPI row. Branch before the
+  // decrypt so a UAZAPI account gets an answer instead of a crypto error.
+  // Rows written before migration 043 have the 'meta' default.
+  if (config.provider === 'uazapi') {
+    return NextResponse.json({
+      live: config.status === 'connected',
+      provider: 'uazapi',
+      checks: { config_exists: true },
+      message:
+        "Esta conta está conectada pela UAZAPI. Este diagnóstico verifica o registro na API oficial da Meta; acompanhe o estado da sessão em Configurações → WhatsApp.",
+    })
+  }
+
   let accessToken: string
   try {
     accessToken = decrypt(config.access_token)

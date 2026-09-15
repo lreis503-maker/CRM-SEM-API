@@ -1,4 +1,5 @@
 import type {
+  UazapiInstallation,
   WhatsAppCapabilitySnapshot,
   WhatsAppConnectionStatus,
   WhatsAppProvider,
@@ -14,7 +15,10 @@ type WhatsAppConfigRow = {
 type WhatsAppConfigReader = {
   from: (table: 'whatsapp_config') => {
     select: (columns: 'provider, status') => {
-      eq: (column: 'account_id', accountId: string) => {
+      eq: (
+        column: 'account_id',
+        accountId: string
+      ) => {
         maybeSingle: () => PromiseLike<{
           data: WhatsAppConfigRow | null;
           error: unknown;
@@ -35,10 +39,11 @@ const CONNECTION_STATUSES: readonly WhatsAppConnectionStatus[] = [
   'error',
 ];
 
-function isConnectionStatus(value: string | null): value is WhatsAppConnectionStatus {
+function isConnectionStatus(
+  value: string | null
+): value is WhatsAppConnectionStatus {
   return (
-    value !== null &&
-    (CONNECTION_STATUSES as readonly string[]).includes(value)
+    value !== null && (CONNECTION_STATUSES as readonly string[]).includes(value)
   );
 }
 
@@ -73,13 +78,31 @@ function hasValidSiteUrl(value: string | undefined): boolean {
   }
 }
 
+/**
+ * The single place that decides whether this installation can talk to
+ * UAZAPI at all. Returns the validated settings for server-side callers,
+ * or null when the operator has not finished configuring them.
+ *
+ * `loadAccountCapabilitySnapshot` only reports whether this is non-null,
+ * so the browser learns availability without learning any value.
+ */
+export function resolveUazapiInstallation(
+  env: UazapiEnvironment
+): UazapiInstallation | null {
+  if (env.UAZAPI_ENABLED !== 'true') return null;
+  if (!hasSafeUazapiBaseUrl(env.UAZAPI_BASE_URL)) return null;
+  if (!hasValue(env.UAZAPI_ADMIN_TOKEN)) return null;
+  if (!hasValidSiteUrl(env.NEXT_PUBLIC_SITE_URL)) return null;
+
+  return {
+    baseUrl: new URL(env.UAZAPI_BASE_URL as string).origin,
+    adminToken: (env.UAZAPI_ADMIN_TOKEN as string).trim(),
+    siteUrl: new URL(env.NEXT_PUBLIC_SITE_URL as string).origin,
+  };
+}
+
 function isUazapiAvailable(env: UazapiEnvironment): boolean {
-  return (
-    env.UAZAPI_ENABLED === 'true' &&
-    hasSafeUazapiBaseUrl(env.UAZAPI_BASE_URL) &&
-    hasValue(env.UAZAPI_ADMIN_TOKEN) &&
-    hasValidSiteUrl(env.NEXT_PUBLIC_SITE_URL)
-  );
+  return resolveUazapiInstallation(env) !== null;
 }
 
 /**
@@ -99,7 +122,8 @@ export async function loadAccountCapabilitySnapshot(
 
   if (error) throw error;
 
-  const provider: WhatsAppProvider = data?.provider === 'uazapi' ? 'uazapi' : 'meta';
+  const provider: WhatsAppProvider =
+    data?.provider === 'uazapi' ? 'uazapi' : 'meta';
   const storedStatus = data?.status ?? null;
   const status: WhatsAppConnectionStatus = isConnectionStatus(storedStatus)
     ? storedStatus

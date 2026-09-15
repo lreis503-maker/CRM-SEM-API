@@ -7,7 +7,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/auth/account', () => ({
   requireRole: mocks.requireRole,
-  toErrorResponse: vi.fn(() => Response.json({ error: 'auth failed' }, { status: 401 })),
+  toErrorResponse: vi.fn(() =>
+    Response.json({ error: 'auth failed' }, { status: 401 })
+  ),
 }));
 
 vi.mock('@/lib/whatsapp/providers/account-capabilities', () => ({

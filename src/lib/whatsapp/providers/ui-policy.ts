@@ -1,7 +1,4 @@
-import type {
-  WhatsAppCapability,
-  WhatsAppCapabilitySnapshot,
-} from './types';
+import type { WhatsAppCapability, WhatsAppCapabilitySnapshot } from './types';
 
 export type ProviderUiPolicyMessage = 'metaOnly' | 'unavailable';
 

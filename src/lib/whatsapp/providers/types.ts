@@ -21,6 +21,17 @@ export type WhatsAppCapability =
   | 'reactions'
   | 'location';
 
+/**
+ * The installation-wide UAZAPI settings, already validated. Present only
+ * when every required server variable is usable; the browser never sees it.
+ */
+export interface UazapiInstallation {
+  baseUrl: string;
+  adminToken: string;
+  /** Canonical origin the webhook callback URL is built from. */
+  siteUrl: string;
+}
+
 export interface WhatsAppCapabilitySnapshot {
   provider: WhatsAppProvider;
   status: WhatsAppConnectionStatus;
