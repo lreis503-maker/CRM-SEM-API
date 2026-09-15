@@ -169,7 +169,40 @@ remove a linha local. Uma instância que já não existe conta como removida.
 
 ---
 
-## 5. Baixar o histórico
+## 5. Sincronizar configurações
+
+Em **Configurações → WhatsApp**, ao lado de **Remover conexão**.
+
+Quais eventos a UAZAPI envia e para qual endereço não fica guardado no
+CRM: fica na assinatura do webhook, do lado da UAZAPI, gravada uma única
+vez no momento em que a conta pareou. Então uma versão nova do CRM que
+passe a querer outro tipo de evento — foi o caso de grupos e das
+mensagens digitadas no próprio celular — deixa toda conexão existente
+presa na assinatura antiga, descartando o tráfego novo antes de ele
+chegar aqui.
+
+Esse botão reaplica a assinatura na instância que a conta já tem:
+
+- reescreve **quais eventos** a UAZAPI deve enviar;
+- reaponta o **endereço de callback** para o `NEXT_PUBLIC_SITE_URL` em uso
+  agora — o outro dado que envelhece numa instância antiga;
+- **rotaciona o segredo da rota**, porque só o hash é guardado e o
+  original não pode ser recuperado. A URL antiga para de funcionar.
+
+O que ele **não** faz: não desconecta o WhatsApp, não pede o QR Code, não
+mexe no estado da conexão. Reaplicar a assinatura não verifica se o
+celular continua pareado, e gravar um palpite mostraria ao usuário um
+status que ninguém conferiu.
+
+O hash novo só é gravado depois que a UAZAPI aceitou a URL. Gravar antes
+aposentaria o callback que ainda está funcionando e deixaria a conta sem
+receber em nenhum dos dois.
+
+Use depois de atualizar o CRM, ou depois de corrigir o `NEXT_PUBLIC_SITE_URL`.
+
+---
+
+## 6. Baixar o histórico
 
 Quem acabou de conectar começa com a caixa de entrada vazia, mesmo tendo
 anos de conversa no celular. Em **Configurações → WhatsApp**, o cartão
@@ -206,7 +239,7 @@ download não para por causa dela.
 
 ---
 
-## 6. Mídia recebida
+## 7. Mídia recebida
 
 A UAZAPI mantém os arquivos hospedados por **dois dias**.
 
@@ -221,7 +254,7 @@ anexo. É melhor que uma mensagem perdida.
 
 ---
 
-## 7. Quarentena de webhooks
+## 8. Quarentena de webhooks
 
 A documentação da UAZAPI deixa o corpo do webhook em aberto. Quando chega
 algo que o CRM não reconhece, ele **não adivinha**: guarda uma amostra
@@ -247,16 +280,17 @@ confirmados, sem gerar linha de quarentena.
 
 ---
 
-## 8. Diagnóstico rápido
+## 9. Diagnóstico rápido
 
-| Sintoma                           | Causa provável                       | O que fazer                                       |
-| --------------------------------- | ------------------------------------ | ------------------------------------------------- |
-| A opção UAZAPI aparece desativada | servidor sem as variáveis            | revisar a seção 1                                 |
-| QR não aparece                    | a chamada de conexão falhou          | **Tentar novamente**; o estado fica em "Com erro" |
-| QR expira antes de ler            | passaram 2 minutos                   | **Gerar novo QR Code**                            |
-| Conectado, mas não chega mensagem | `NEXT_PUBLIC_SITE_URL` não é público | corrigir e reconectar                             |
-| Aparece "Sessão pausada"          | a UAZAPI hibernou a sessão           | **Reconectar**                                    |
-| Envio falha com erro do provedor  | sessão caiu ou o WhatsApp recusou    | conferir o estado e enviar de novo                |
+| Sintoma                                             | Causa provável                       | O que fazer                                       |
+| --------------------------------------------------- | ------------------------------------ | ------------------------------------------------- |
+| A opção UAZAPI aparece desativada                   | servidor sem as variáveis            | revisar a seção 1                                 |
+| Mensagens de grupo ou do próprio celular não chegam | instância presa na assinatura antiga | **Sincronizar configurações** (seção 5)           |
+| QR não aparece                                      | a chamada de conexão falhou          | **Tentar novamente**; o estado fica em "Com erro" |
+| QR expira antes de ler                              | passaram 2 minutos                   | **Gerar novo QR Code**                            |
+| Conectado, mas não chega mensagem                   | `NEXT_PUBLIC_SITE_URL` não é público | corrigir e reconectar                             |
+| Aparece "Sessão pausada"                            | a UAZAPI hibernou a sessão           | **Reconectar**                                    |
+| Envio falha com erro do provedor                    | sessão caiu ou o WhatsApp recusou    | conferir o estado e enviar de novo                |
 
 Um envio que falhou **nunca é repetido sozinho**. Se a resposta ficou
 indefinida (tempo esgotado, conexão caída), o CRM registra a falha e espera
@@ -268,7 +302,7 @@ Mais causas e códigos em
 
 ---
 
-## 9. Smoke test com número descartável
+## 10. Smoke test com número descartável
 
 Esta implementação **não foi validada contra uma instância UAZAPI real** —
 não havia ambiente de teste nem número descartável disponíveis. O

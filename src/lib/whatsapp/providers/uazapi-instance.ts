@@ -517,6 +517,49 @@ export async function regenerateUazapiQrCode(
 }
 
 /**
+ * Re-applies the webhook subscription to an instance the account already
+ * owns, without disturbing the paired session.
+ *
+ * The events a delivery is filtered by live at UAZAPI, not here: they are
+ * written once, when the account pairs. So a release that changes which
+ * events the CRM wants — as adding groups and own-phone messages did —
+ * leaves every existing instance silently on the old subscription,
+ * dropping the new traffic before it is ever sent. Until this existed the
+ * only cure was to unpair and scan a QR code again, which asks the user
+ * to fix something they did not break.
+ *
+ * It also repoints the callback at the site URL in use right now, which
+ * is the other thing that can go stale on a long-lived instance.
+ *
+ * Nothing about the connection is written. Re-registering says nothing
+ * about whether the phone is still paired, and recording a guess would
+ * show a status nobody actually checked.
+ */
+export async function resyncUazapiWebhook(
+  ctx: UazapiConnectionContext
+): Promise<void> {
+  const config = requireUazapiConfig(await ctx.loadConfig());
+  if (!config.uazapi_instance_id) {
+    throw new UazapiConnectionError('missing_instance');
+  }
+
+  const token = await ctx.loadInstanceToken(config.id);
+  if (token === null) throw new UazapiConnectionError('missing_token');
+
+  const { newSecret } = contextDefaults(ctx);
+  const secret = newSecret();
+
+  // The hash is stored only after UAZAPI accepted the new URL. Writing it
+  // first would retire the callback that is still working and leave the
+  // account receiving on neither.
+  await registerWebhook(ctx, ctx.instanceClientFor(token), secret);
+
+  await ctx.updateConfig(config.id, {
+    uazapi_webhook_secret_hash: hashUazapiWebhookSecret(secret),
+  });
+}
+
+/**
  * Ends the WhatsApp session but keeps the instance, so a failed switch to
  * Meta can still recover by generating a new QR on the same instance.
  *

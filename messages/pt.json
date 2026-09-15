@@ -1748,7 +1748,10 @@
             "network": "Falha de conexão. Verifique a internet e tente de novo.",
             "unknown": "Não foi possível baixar o histórico agora."
           }
-        }
+        },
+        "resyncButton": "Sincronizar configurações",
+        "resyncHint": "Reaplica na UAZAPI quais eventos o CRM recebe e para onde eles são enviados. Não desconecta o WhatsApp nem pede o QR Code.",
+        "resynced": "Configurações sincronizadas."
       }
     },
     "sections": {

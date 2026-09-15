@@ -7,10 +7,11 @@ import {
   beginUazapiConnection,
   createUazapiConnectionContext,
   regenerateUazapiQrCode,
+  resyncUazapiWebhook,
   uazapiConnectionErrorResponse,
 } from '@/lib/whatsapp/providers/uazapi-instance';
 
-const ACTIONS = ['start', 'refresh_qr'] as const;
+const ACTIONS = ['start', 'refresh_qr', 'resync_webhook'] as const;
 type ConnectAction = (typeof ACTIONS)[number];
 
 function readAction(body: unknown): ConnectAction | null {
@@ -24,9 +25,11 @@ function readAction(body: unknown): ConnectAction | null {
 /**
  * POST /api/whatsapp/uazapi/connect
  *
- * Starts pairing (`start`) or re-issues a QR code on the instance the
- * account already owns (`refresh_qr`). Both change provider credentials,
- * so both require an account admin.
+ * Starts pairing (`start`), re-issues a QR code on the instance the
+ * account already owns (`refresh_qr`), or re-applies the webhook
+ * subscription to that instance without disturbing the session
+ * (`resync_webhook`). All three change provider credentials, so all
+ * three require an account admin.
  *
  * The response carries only `UazapiConnectionView` plus the counts of work
  * the switch stopped. No token, secret or instance identifier is included.
@@ -57,6 +60,14 @@ export async function POST(request: Request) {
       userId,
       installation,
     });
+
+    if (action === 'resync_webhook') {
+      await resyncUazapiWebhook(context);
+      // Deliberately no connection view: re-registering checked nothing
+      // about the pairing, and answering with a guessed state would
+      // overwrite what the panel actually polled.
+      return NextResponse.json({ resynced: true });
+    }
 
     if (action === 'refresh_qr') {
       const connection = await regenerateUazapiQrCode(context);

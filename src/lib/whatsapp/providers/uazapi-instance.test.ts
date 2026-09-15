@@ -9,6 +9,7 @@ import {
   refreshUazapiConnection,
   regenerateUazapiQrCode,
   removeUazapiConnection,
+  resyncUazapiWebhook,
 } from './uazapi-instance';
 
 const NOW = new Date('2026-09-15T12:00:00.000Z');
@@ -547,5 +548,141 @@ describe('removeUazapiConnection', () => {
 
     await expect(removeUazapiConnection(ctx)).rejects.toThrow();
     expect(ports(ctx).deleteConfig).not.toHaveBeenCalled();
+  });
+});
+
+describe('resyncUazapiWebhook', () => {
+  it('re-registers the subscription without touching the session', () => {
+    const ctx = makeContext();
+    ports(ctx).loadConfig.mockResolvedValue(
+      uazapiConfig({ status: 'connected' })
+    );
+    ports(ctx).loadInstanceToken.mockResolvedValue(PLAIN_TOKEN);
+
+    return resyncUazapiWebhook(ctx).then(() => {
+      expect(ports(ctx).instance.configureWebhook).toHaveBeenCalledOnce();
+      // The whole point: an account whose events changed should not have
+      // to find its phone and scan a QR code again.
+      expect(ports(ctx).instance.connect).not.toHaveBeenCalled();
+      expect(ports(ctx).instance.disconnect).not.toHaveBeenCalled();
+      expect(ports(ctx).admin.createInstance).not.toHaveBeenCalled();
+    });
+  });
+
+  it('applies the event filters the code asks for today', async () => {
+    const ctx = makeContext();
+    ports(ctx).loadConfig.mockResolvedValue(
+      uazapiConfig({ status: 'connected' })
+    );
+    ports(ctx).loadInstanceToken.mockResolvedValue(PLAIN_TOKEN);
+
+    await resyncUazapiWebhook(ctx);
+
+    expect(ports(ctx).instance.configureWebhook).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enabled: true,
+        events: ['messages', 'messages_update', 'connection'],
+        excludeMessages: ['wasSentByApi'],
+      })
+    );
+  });
+
+  it('points the callback at the site URL in use right now', async () => {
+    const ctx = makeContext({ siteUrl: 'https://corrected.example.com' });
+    ports(ctx).loadConfig.mockResolvedValue(
+      uazapiConfig({ status: 'connected' })
+    );
+    ports(ctx).loadInstanceToken.mockResolvedValue(PLAIN_TOKEN);
+
+    await resyncUazapiWebhook(ctx);
+
+    const [call] = ports(ctx).instance.configureWebhook.mock.calls;
+    expect(call[0].url).toContain('https://corrected.example.com');
+  });
+
+  it('rotates the route secret and stores only its hash', async () => {
+    const ctx = makeContext();
+    ports(ctx).loadConfig.mockResolvedValue(
+      uazapiConfig({ status: 'connected' })
+    );
+    ports(ctx).loadInstanceToken.mockResolvedValue(PLAIN_TOKEN);
+
+    await resyncUazapiWebhook(ctx);
+
+    // Only the hash is ever stored, so the old secret cannot be reused
+    // and the previous callback URL stops working.
+    expect(ports(ctx).updateConfig).toHaveBeenCalledWith(
+      'cfg-1',
+      expect.objectContaining({
+        uazapi_webhook_secret_hash: hashUazapiWebhookSecret(
+          'plain-webhook-secret'
+        ),
+      })
+    );
+    const written = JSON.stringify(ports(ctx).updateConfig.mock.calls);
+    expect(written).not.toContain('plain-webhook-secret');
+  });
+
+  it('leaves the connection state alone', async () => {
+    const ctx = makeContext();
+    ports(ctx).loadConfig.mockResolvedValue(
+      uazapiConfig({ status: 'connected' })
+    );
+    ports(ctx).loadInstanceToken.mockResolvedValue(PLAIN_TOKEN);
+
+    await resyncUazapiWebhook(ctx);
+
+    // Re-registering says nothing about whether the phone is paired, and
+    // writing a guess here would show the user a status nobody checked.
+    const [, patch] = ports(ctx).updateConfig.mock.calls[0];
+    expect(patch).not.toHaveProperty('status');
+    expect(patch).not.toHaveProperty('connection_attempt_id');
+  });
+
+  it('refuses when the account has no instance to re-register', async () => {
+    const ctx = makeContext();
+    ports(ctx).loadConfig.mockResolvedValue(
+      uazapiConfig({ uazapi_instance_id: null })
+    );
+
+    await expect(resyncUazapiWebhook(ctx)).rejects.toMatchObject({
+      code: 'missing_instance',
+    });
+    expect(ports(ctx).instance.configureWebhook).not.toHaveBeenCalled();
+  });
+
+  it('refuses when the instance token cannot be read', async () => {
+    const ctx = makeContext();
+    ports(ctx).loadConfig.mockResolvedValue(uazapiConfig());
+    ports(ctx).loadInstanceToken.mockResolvedValue(null);
+
+    await expect(resyncUazapiWebhook(ctx)).rejects.toMatchObject({
+      code: 'missing_token',
+    });
+  });
+
+  it('refuses on an account that is not on UAZAPI', async () => {
+    const ctx = makeContext();
+    ports(ctx).loadConfig.mockResolvedValue(uazapiConfig({ provider: 'meta' }));
+
+    await expect(resyncUazapiWebhook(ctx)).rejects.toMatchObject({
+      code: 'wrong_provider',
+    });
+  });
+
+  it('does not record a new secret when the provider refused it', async () => {
+    const ctx = makeContext();
+    ports(ctx).loadConfig.mockResolvedValue(
+      uazapiConfig({ status: 'connected' })
+    );
+    ports(ctx).loadInstanceToken.mockResolvedValue(PLAIN_TOKEN);
+    ports(ctx).instance.configureWebhook.mockRejectedValue(
+      new Error('upstream refused')
+    );
+
+    await expect(resyncUazapiWebhook(ctx)).rejects.toThrow();
+    // Storing the hash of a secret UAZAPI never accepted would retire the
+    // callback that is still working and receive nothing on the new one.
+    expect(ports(ctx).updateConfig).not.toHaveBeenCalled();
   });
 });

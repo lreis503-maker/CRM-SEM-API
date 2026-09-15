@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Loader2,
   QrCode,
+  RefreshCw,
   RotateCcw,
   Trash2,
 } from 'lucide-react';
@@ -220,6 +221,40 @@ export function UazapiConnectionPanel({
     }
   }
 
+  /**
+   * Re-applies the webhook subscription to the instance already paired.
+   *
+   * Which events UAZAPI forwards is decided at pairing time and stored on
+   * their side, so a release that starts wanting a new kind of event —
+   * groups, messages typed on the linked phone — leaves an existing
+   * connection quietly on the old subscription. This fixes that without
+   * asking the user to find their phone and scan a code again.
+   */
+  async function handleResync() {
+    setBusy(true);
+    try {
+      const response = await fetch('/api/whatsapp/uazapi/connect', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'resync_webhook' }),
+      });
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        toast.error(t(`errors.${body.error ?? 'unknown'}` as never));
+        return;
+      }
+
+      toast.success(t('resynced'));
+    } catch {
+      toast.error(t('errors.network'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleRemove() {
     setBusy(true);
     try {
@@ -394,6 +429,20 @@ export function UazapiConnectionPanel({
                     <RotateCcw className="size-4" />
                   )}
                   {primaryLabel[state.primaryAction]}
+                </Button>
+              )}
+
+              {/* Same condition as removal: both act on an instance the
+                  account already owns. */}
+              {state.canRemove && (
+                <Button
+                  variant="outline"
+                  onClick={() => void handleResync()}
+                  disabled={!canEdit || busy}
+                  title={t('resyncHint')}
+                >
+                  <RefreshCw className="size-4" />
+                  {t('resyncButton')}
                 </Button>
               )}
 

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   createContext: vi.fn(() => ({ name: 'ctx' })),
   begin: vi.fn(),
   regenerate: vi.fn(),
+  resync: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/account', () => ({
@@ -29,6 +30,7 @@ vi.mock('@/lib/whatsapp/providers/uazapi-instance', async (importOriginal) => {
     createUazapiConnectionContext: mocks.createContext,
     beginUazapiConnection: mocks.begin,
     regenerateUazapiQrCode: mocks.regenerate,
+    resyncUazapiWebhook: mocks.resync,
   };
 });
 
@@ -123,6 +125,36 @@ describe('POST /api/whatsapp/uazapi/connect', () => {
     expect(mocks.regenerate).toHaveBeenCalledOnce();
     expect(mocks.begin).not.toHaveBeenCalled();
     expect(body).toEqual({ connection: CONNECTION_VIEW, affected: null });
+  });
+
+  it('re-registers the webhook for resync_webhook, leaving the session alone', async () => {
+    const response = await POST(request({ action: 'resync_webhook' }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.resync).toHaveBeenCalledOnce();
+    // The point of the action: no new instance, no new QR, nothing the
+    // user has to go and scan.
+    expect(mocks.begin).not.toHaveBeenCalled();
+    expect(mocks.regenerate).not.toHaveBeenCalled();
+  });
+
+  it('answers a resync with no connection view to overwrite the panel', async () => {
+    const body = await (
+      await POST(request({ action: 'resync_webhook' }))
+    ).json();
+
+    // Re-registering checked nothing about the pairing, so the panel
+    // keeps the state it already polled rather than being told a guess.
+    expect(body).toEqual({ resynced: true });
+  });
+
+  it('never returns the rotated route secret', async () => {
+    const raw = JSON.stringify(
+      await (await POST(request({ action: 'resync_webhook' }))).json()
+    );
+
+    expect(raw).not.toContain('secret');
+    expect(raw).not.toContain('webhook');
   });
 
   it('rejects an unknown action before touching the provider', async () => {

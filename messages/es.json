@@ -1748,7 +1748,10 @@
             "network": "Error de conexión. Revise su internet e inténtelo de nuevo.",
             "unknown": "No se pudo descargar el historial en este momento."
           }
-        }
+        },
+        "resyncButton": "Sincronizar configuración",
+        "resyncHint": "Vuelve a aplicar en UAZAPI qué eventos recibe el CRM y a dónde se envían. No desconecta WhatsApp ni pide el código QR.",
+        "resynced": "Configuración sincronizada."
       }
     },
     "sections": {
