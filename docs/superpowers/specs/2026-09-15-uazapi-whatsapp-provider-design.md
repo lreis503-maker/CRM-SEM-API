@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-15
 
-**Status:** Approved in conversation; awaiting review of this written specification
+**Status:** Approved
 
 **Source contract:** UAZAPI OpenAPI 3.1, version 2.1.1, supplied as `uazapi-openapi-spec.yaml`
 
@@ -58,18 +58,18 @@ Connection management remains provider-specific because Meta registration and a 
 
 The capability map is the only source used to decide whether a provider supports an operation. Initial capabilities are:
 
-| Capability | Meta | UAZAPI |
-| --- | --- | --- |
-| Connection status | yes | yes |
-| Send text | yes | yes |
-| Send media | yes | yes |
-| Receive text/media | yes | yes |
-| Meta 24-hour service window | yes | no |
-| Templates/models | yes | no |
-| Template synchronization | yes | no |
-| Broadcasts | yes | no |
-| Interactive messages | existing Meta behavior | no in v1 |
-| Reactions and location | existing Meta behavior | no in v1 |
+| Capability                  | Meta                   | UAZAPI   |
+| --------------------------- | ---------------------- | -------- |
+| Connection status           | yes                    | yes      |
+| Send text                   | yes                    | yes      |
+| Send media                  | yes                    | yes      |
+| Receive text/media          | yes                    | yes      |
+| Meta 24-hour service window | yes                    | no       |
+| Templates/models            | yes                    | no       |
+| Template synchronization    | yes                    | no       |
+| Broadcasts                  | yes                    | no       |
+| Interactive messages        | existing Meta behavior | no in v1 |
+| Reactions and location      | existing Meta behavior | no in v1 |
 
 ### 3.2 Outbound boundary
 
