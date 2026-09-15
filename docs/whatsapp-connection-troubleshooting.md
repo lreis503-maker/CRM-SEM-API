@@ -187,6 +187,52 @@ If the server cannot reach `graph.facebook.com` at all:
    environment must be *that* app's secret, or every delivery is
    rejected with a 401 before wacrm looks at it.
 
+## The account is on UAZAPI, not Meta
+
+Everything above is about the official Meta Cloud API. An account that
+connects by QR code through UAZAPI has no Meta credentials at all, so
+Settings shows the QR panel instead of the token form and this page
+mostly does not apply. See [uazapi.md](./uazapi.md) for that flow.
+
+What you can still hit:
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| The UAZAPI option is visible but disabled | the server has not enabled it | set `UAZAPI_ENABLED`, `UAZAPI_BASE_URL`, `UAZAPI_ADMIN_TOKEN` and a public HTTPS `NEXT_PUBLIC_SITE_URL` |
+| `uazapi_request_failed` with reason `authentication` | UAZAPI rejected the admin token or the instance token (401/403) | check `UAZAPI_ADMIN_TOKEN`; if only one account is affected, remove the connection and pair again |
+| `uazapi_request_failed` with reason `not_found` | the instance was deleted upstream (404) | remove the connection in Settings and pair again |
+| `uazapi_request_failed` with reason `rate_limited` or `upstream_unavailable` | 429, a 5xx, or a timeout | retry; the CRM never retries a send on its own |
+| Status stays *Waiting for the QR code* | the code expired after 2 minutes | **Generate a new QR code** — it reuses the same instance |
+| Status is *Session paused* (`hibernated`) | UAZAPI hibernated the session, credentials preserved | **Reconnect** |
+| Connected, but no inbound messages | `NEXT_PUBLIC_SITE_URL` is not publicly reachable, so the callback never arrives | set the real public HTTPS origin and pair again so the webhook is re-registered |
+| A Meta-only action answers HTTP 409 | `provider_not_supported` — templates, template sync, broadcasts, interactive, reactions and location are Meta-only | switch the account back to Meta, or use text/media |
+| An attachment is gone after two days | media mirroring is off for the account | turn on inbound media mirroring in Settings; UAZAPI hosts files for 2 days only |
+
+A send whose outcome was never confirmed — a timeout or a dropped
+connection — is recorded as failed and is **never** retried
+automatically. Repeating it could deliver the same message twice to a
+real person, so the resend is a deliberate action.
+
+### Reading UAZAPI own webhook errors
+
+UAZAPI exposes `GET /webhook/errors`, which lists deliveries it could
+not hand over. It is authenticated with the **instance** token, which
+this CRM stores encrypted and never displays.
+
+To inspect it, run the request from the server with the token read out
+of the environment — never paste a token into a ticket, a chat message
+or a shell history file:
+
+```bash
+# Prompted, not typed as an argument, so it stays out of shell history.
+read -rs UAZAPI_INSTANCE_TOKEN
+curl -sS -H "token: $UAZAPI_INSTANCE_TOKEN" "$UAZAPI_BASE_URL/webhook/errors"
+```
+
+The CRM side of the same question is the `whatsapp_webhook_quarantine`
+table: one row per payload shape the normalizer could not read, redacted,
+counted and deleted after seven days. A healthy account has none.
+
 ## Where the mapping lives
 
 * `src/lib/whatsapp/meta-error-explain.ts` — code → explanation, field,
