@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { decrypt } from '@/lib/whatsapp/encryption';
 
 const requireRoleMock = vi.fn();
 vi.mock('@/lib/auth/account', async () => {
@@ -20,12 +21,20 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
 
 import { POST } from './route';
 
+// Captures the payload passed to the mocked `.insert()` call so tests can
+// assert on what actually gets written (e.g. that credentials are
+// encrypted before storage), not just on the route's HTTP response.
+let insertedPayload: Record<string, unknown> | undefined;
+
 function thenable(result: { data: unknown; error: unknown }) {
   const builder: Record<string, unknown> = {};
   const chain = () => builder;
   builder.select = chain;
   builder.eq = chain;
-  builder.insert = chain;
+  builder.insert = (payload: unknown) => {
+    insertedPayload = payload as Record<string, unknown>;
+    return builder;
+  };
   builder.update = chain;
   builder.maybeSingle = async () => result;
   builder.then = (resolve: (v: typeof result) => unknown) => resolve(result);
@@ -33,6 +42,7 @@ function thenable(result: { data: unknown; error: unknown }) {
 }
 
 beforeEach(() => {
+  insertedPayload = undefined;
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: 'ig-1' }) }));
   requireRoleMock.mockResolvedValue({
     supabase: { from: () => thenable({ data: null, error: null }) },
@@ -76,5 +86,13 @@ describe('POST /api/instagram/config', () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.success).toBe(true);
+
+    // Guard against a regression that stores the raw token: assert the
+    // row actually written to `.insert()` holds an encrypted value, not
+    // the plaintext token, and that it decrypts back to the original.
+    expect(insertedPayload).toBeDefined();
+    const storedToken = insertedPayload!.page_access_token as string;
+    expect(storedToken).not.toBe('tok');
+    expect(decrypt(storedToken)).toBe('tok');
   });
 });
