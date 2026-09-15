@@ -39,6 +39,7 @@ import {
   validateSendMessageParams,
   SendMessageError,
 } from '@/lib/whatsapp/send-message';
+import { isProviderNotSupportedError } from '@/lib/whatsapp/providers/account-capability-guard';
 import type { InteractiveMessagePayload } from '@/lib/whatsapp/interactive';
 
 export async function POST(request: Request) {
@@ -138,6 +139,15 @@ export async function POST(request: Request) {
       201
     );
   } catch (err) {
+    // Keep the v1 envelope but carry the same stable machine code the
+    // rest of the API uses for a Meta-only operation on UAZAPI.
+    if (isProviderNotSupportedError(err)) {
+      return fail(
+        err.code,
+        `O provedor ${err.provider} não oferece ${err.capability}.`,
+        err.status
+      );
+    }
     if (err instanceof SendMessageError) {
       return fail(err.code, err.message, err.status);
     }
