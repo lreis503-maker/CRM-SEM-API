@@ -311,7 +311,15 @@
       "deals": "딜",
       "noTags": "태그 없음",
       "noDeals": "딜 없음",
-      "addNotePlaceholder": "메모 추가..."
+      "addNotePlaceholder": "메모 추가...",
+      "tagAdd": "태그",
+      "tagSearchPlaceholder": "태그 검색 또는 생성...",
+      "tagCreate": "\"{name}\" 만들고 적용",
+      "tagNoneYet": "아직 태그가 없습니다. 이름을 입력해 첫 태그를 만드세요.",
+      "tagNoMatch": "해당 이름의 태그가 없습니다.",
+      "tagRemove": "{name} 태그 제거",
+      "tagUpdateFailed": "태그를 업데이트하지 못했습니다.",
+      "tagCreateFailed": "태그를 만들지 못했습니다."
     },
     "aiBanner": {
       "pausedTitle": "이 대화에서 AI 어시스턴트가 일시 중지됨",

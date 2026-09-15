@@ -311,7 +311,15 @@
       "deals": "Negócios",
       "noTags": "Sem etiquetas",
       "noDeals": "Sem negócios",
-      "addNotePlaceholder": "Adicionar uma nota..."
+      "addNotePlaceholder": "Adicionar uma nota...",
+      "tagAdd": "Etiquetar",
+      "tagSearchPlaceholder": "Buscar ou criar etiqueta...",
+      "tagCreate": "Criar \"{name}\" e aplicar",
+      "tagNoneYet": "Nenhuma etiqueta ainda. Digite um nome para criar a primeira.",
+      "tagNoMatch": "Nenhuma etiqueta com esse nome.",
+      "tagRemove": "Remover etiqueta {name}",
+      "tagUpdateFailed": "Não foi possível atualizar a etiqueta.",
+      "tagCreateFailed": "Não foi possível criar a etiqueta."
     },
     "aiBanner": {
       "pausedTitle": "O assistente de IA está pausado aqui",

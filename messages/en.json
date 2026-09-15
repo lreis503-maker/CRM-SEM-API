@@ -311,7 +311,15 @@
       "deals": "Deals",
       "noTags": "No tags",
       "noDeals": "No deals",
-      "addNotePlaceholder": "Add a note..."
+      "addNotePlaceholder": "Add a note...",
+      "tagAdd": "Tag",
+      "tagSearchPlaceholder": "Search or create a tag...",
+      "tagCreate": "Create \"{name}\" and apply",
+      "tagNoneYet": "No tags yet. Type a name to create the first one.",
+      "tagNoMatch": "No tag with that name.",
+      "tagRemove": "Remove tag {name}",
+      "tagUpdateFailed": "The tag could not be updated.",
+      "tagCreateFailed": "The tag could not be created."
     },
     "aiBanner": {
       "pausedTitle": "AI assistant is paused here",

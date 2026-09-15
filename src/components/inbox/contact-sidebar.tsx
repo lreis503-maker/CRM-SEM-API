@@ -23,6 +23,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { useTranslations } from "next-intl";
 import { contactHandle } from "@/lib/whatsapp/wa-identity";
+import { ContactTagPicker } from "./contact-tag-picker";
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -36,7 +37,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const [copied, setCopied] = useState(false);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [notes, setNotes] = useState<ContactNote[]>([]);
-  const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [newNote, setNewNote] = useState("");
   const [addingNote, setAddingNote] = useState(false);
 
@@ -59,20 +60,20 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
         .order("created_at", { ascending: false }),
       supabase
         .from("contact_tags")
-        .select("id, tag_id, tags(*)")
+        .select("tags(*)")
         .eq("contact_id", contact.id),
     ]);
 
     if (dealsRes.data) setDeals(dealsRes.data);
     if (notesRes.data) setNotes(notesRes.data);
     if (tagsRes.data) {
-      const mapped = tagsRes.data
-        .filter((ct: Record<string, unknown>) => ct.tags)
-        .map((ct: Record<string, unknown>) => ({
-          ...(ct.tags as Tag),
-          contact_tag_id: ct.id as string,
-        }));
-      setTags(mapped);
+      // The join row's own id is not needed: a tag is addressed by its
+      // tag id, which is what the contact-tags route takes.
+      setTags(
+        tagsRes.data
+          .map((ct: Record<string, unknown>) => ct.tags as Tag | null)
+          .filter((tag): tag is Tag => tag != null)
+      );
     }
   }, [contact]);
 
@@ -195,24 +196,11 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
               <TagIcon className="h-3 w-3" />
               {tSidebar("tags")}
             </div>
-            <div className="mt-2 flex flex-wrap gap-1">
-              {tags.length === 0 ? (
-                <p className="px-1 text-xs text-muted-foreground">{tSidebar("noTags")}</p>
-              ) : (
-                tags.map((tag) => (
-                  <span
-                    key={tag.contact_tag_id}
-                    className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                    style={{
-                      backgroundColor: `${tag.color}20`,
-                      color: tag.color,
-                    }}
-                  >
-                    {tag.name}
-                  </span>
-                ))
-              )}
-            </div>
+            <ContactTagPicker
+              contactId={contact.id}
+              value={tags}
+              onChange={setTags}
+            />
           </div>
 
           {/* Divider */}
