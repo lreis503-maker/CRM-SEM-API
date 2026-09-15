@@ -1,19 +1,20 @@
-import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api'
+import { sendTemplateMessage } from '@/lib/whatsapp/meta-api'
 import type { InteractiveMessagePayload } from '@/lib/whatsapp/interactive'
 import {
   engineSendInteractiveButtons,
   engineSendInteractiveList,
 } from '@/lib/flows/meta-send'
-import { decrypt } from '@/lib/whatsapp/encryption'
+import { assertProviderCapability } from '@/lib/whatsapp/providers/capabilities'
 import {
-  phoneVariants,
-  isRecipientNotAllowedError,
-} from '@/lib/whatsapp/phone-utils'
-import { resolveContactSendTarget } from '@/lib/whatsapp/wa-identity'
+  attemptAcrossPhoneVariants,
+  loadProviderTransport,
+} from '@/lib/whatsapp/providers/send-provider-message'
+import { resolveProviderSendTarget } from '@/lib/whatsapp/providers/resolve-send-target'
 import {
   resolveTemplateRow,
   templateContentText,
 } from '@/lib/whatsapp/template-body'
+import { randomUUID } from 'crypto'
 import { supabaseAdmin } from './admin-client'
 
 // ------------------------------------------------------------
@@ -52,13 +53,13 @@ interface SendTemplateArgs {
 }
 
 export async function engineSendText(args: SendTextArgs): Promise<{ whatsapp_message_id: string }> {
-  return sendViaMeta({ ...args, kind: 'text' })
+  return sendViaProvider({ ...args, kind: 'text' })
 }
 
 export async function engineSendTemplate(
   args: SendTemplateArgs,
 ): Promise<{ whatsapp_message_id: string }> {
-  return sendViaMeta({ ...args, kind: 'template' })
+  return sendViaProvider({ ...args, kind: 'template' })
 }
 
 interface SendInteractiveArgs {
@@ -108,8 +109,17 @@ type SendInput =
   | (SendTextArgs & { kind: 'text' })
   | (SendTemplateArgs & { kind: 'template' })
 
-async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: string }> {
+async function sendViaProvider(input: SendInput): Promise<{ whatsapp_message_id: string }> {
   const db = supabaseAdmin()
+
+  // Which provider is active decides the transport. A template step that
+  // survived a provider switch is refused here, before a contact is read
+  // or a credential decrypted, and the engine logs it as a step failure.
+  const { provider, transport, config, accessToken } =
+    await loadProviderTransport(db, input.accountId)
+  if (input.kind === 'template') {
+    assertProviderCapability(provider, 'templates')
+  }
 
   // Scope the contact + config lookups by account_id, not user_id.
   // The engine uses the service-role client (bypassing RLS); without
@@ -129,26 +139,14 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
     throw new Error("O contato não foi encontrado nesta conta")
   }
 
-  // Phone number, or the business-scoped user ID when Meta has never
-  // given us a number for this customer (issue #519).
-  const sendTarget = resolveContactSendTarget(contact)
-  if (!sendTarget) {
-    throw new Error(
-      `O contato não tem um endereço válido no WhatsApp (telefone: ${contact.phone || "nenhum"})`
-    )
-  }
-  const sanitized = sendTarget.target
-
-  const { data: config, error: configErr } = await db
-    .from('whatsapp_config')
-    .select('*')
-    .eq('account_id', input.accountId)
-    .single()
-  if (configErr || !config) {
-    throw new Error("O WhatsApp não está configurado para esta conta")
-  }
-
-  const accessToken = decrypt(config.access_token)
+  // Phone number, or a provider-specific identifier: a Meta
+  // business-scoped user ID (issue #519) or a stored UAZAPI LID.
+  const sendTarget = await resolveProviderSendTarget(
+    db,
+    input.accountId,
+    provider,
+    contact,
+  )
 
   // Local template row — read for the body we persist below, not for
   // the Meta payload (the wire shape is deliberately unchanged here).
@@ -166,11 +164,17 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
         ).row
       : null
 
+  // Generated before the send so it can travel as the provider tracking
+  // id and name the row it becomes.
+  const localMessageId = randomUUID()
+
   const attempt = async (phone: string): Promise<string> => {
+    // Templates have no shared contract; they stay on the Meta path,
+    // already gated by the capability assertion above.
     if (input.kind === 'template') {
       const r = await sendTemplateMessage({
-        phoneNumberId: config.phone_number_id,
-        accessToken,
+        phoneNumberId: config.phone_number_id as string,
+        accessToken: accessToken as string,
         to: phone,
         templateName: input.templateName,
         language: input.language,
@@ -178,43 +182,26 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
       })
       return r.messageId
     }
-    const r = await sendTextMessage({
-      phoneNumberId: config.phone_number_id,
-      accessToken,
-      to: phone,
+    const sent = await transport.send(phone, {
+      kind: 'text',
       text: input.text,
+      trackId: localMessageId,
     })
-    return r.messageId
+    return sent.externalMessageId
   }
 
-  // Same phone-variant retry as /api/whatsapp/send — Meta sandbox and
-  // numbers registered with/without a trunk 0 both require this to
-  // reliably land a message.
-  const variants = sendTarget.isPhone ? phoneVariants(sanitized) : [sanitized]
-  let workingPhone = sanitized
-  let waMessageId = ''
-  let lastError: unknown = null
-  for (const v of variants) {
-    try {
-      waMessageId = await attempt(v)
-      workingPhone = v
-      lastError = null
-      break
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      if (!isRecipientNotAllowedError(msg)) throw err
-      lastError = err
-    }
-  }
-  if (lastError) throw lastError
-
-  if (sendTarget.isPhone && workingPhone !== sanitized) {
-    await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
-  }
+  // Meta keeps the phone-variant retry; a UAZAPI send is attempted once.
+  const waMessageId = await attemptAcrossPhoneVariants({
+    db,
+    contactId: contact.id,
+    provider,
+    target: sendTarget,
+    attempt,
+  })
 
   // Persist the sent message so it appears in the inbox with a real
-  // Meta message id. sender_type='bot' distinguishes automation sends
-  // from manual agent sends.
+  // provider message id. sender_type='bot' distinguishes automation
+  // sends from manual agent sends.
   const content_type = input.kind === 'template' ? 'template' : 'text'
   // Templates persist the substituted body, same as the manual and
   // public-API send paths. This was unconditionally null, so every
@@ -226,7 +213,9 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   const template_name = input.kind === 'template' ? input.templateName : null
 
   const { error: msgErr } = await db.from('messages').insert({
+    id: localMessageId,
     conversation_id: input.conversationId,
+    provider,
     sender_type: 'bot',
     content_type,
     content_text,
@@ -235,9 +224,9 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
     status: 'sent',
   })
   if (msgErr) {
-    // Meta already has the message; record the DB error but don't pretend
-    // the send failed. The engine wraps this in a log line.
-    throw new Error(`Enviado para a Meta, mas não foi possível salvar no banco de dados: ${msgErr.message}`)
+    // The provider already has the message; record the DB error but
+    // don't pretend the send failed. The engine wraps this in a log line.
+    throw new Error(`Enviado para o WhatsApp, mas não foi possível salvar no banco de dados: ${msgErr.message}`)
   }
 
   await db

@@ -20,8 +20,10 @@ import type {
   ProviderSendResult,
   ProviderTransport,
 } from './provider-transport';
+import { isRecipientNotAllowedError, phoneVariants } from '../phone-utils';
 import {
   resolveProviderSendTarget,
+  type ProviderSendTarget,
   type SendTargetContact,
 } from './resolve-send-target';
 import type { UazapiInstallation, WhatsAppProvider } from './types';
@@ -179,9 +181,53 @@ export async function loadProviderTransport(
 }
 
 /**
+ * Runs `attempt` against the resolved target, walking Meta's phone
+ * variants when the first form is rejected as "recipient not in allowed
+ * list", and writing the working number back to the contact.
+ *
+ * Meta sandbox numbers and numbers registered with or without a trunk 0
+ * both need this to land reliably, so every Meta send path shares it.
+ * UAZAPI deliberately gets exactly one attempt: a second one could
+ * deliver the same message to a real person twice.
+ */
+export async function attemptAcrossPhoneVariants<T>(input: {
+  db: ConfigReader;
+  contactId: string;
+  provider: WhatsAppProvider;
+  target: ProviderSendTarget;
+  attempt: (target: string) => Promise<T>;
+}): Promise<T> {
+  const { db, contactId, provider, target, attempt } = input;
+
+  const variants =
+    provider === 'meta' && target.isPhone
+      ? phoneVariants(target.target)
+      : [target.target];
+
+  let lastError: unknown = null;
+  for (const variant of variants) {
+    try {
+      const result = await attempt(variant);
+      if (target.isPhone && variant !== target.target) {
+        await db
+          .from('contacts')
+          .update({ phone: variant })
+          .eq('id', contactId);
+      }
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!isRecipientNotAllowedError(message)) throw error;
+      lastError = error;
+    }
+  }
+
+  throw lastError;
+}
+
+/**
  * Sends one message to a contact through whichever provider the account
- * has active. Exactly one attempt; the caller decides what to do with a
- * failure.
+ * has active, keeping Meta's phone-variant retry.
  */
 export async function sendProviderMessage(
   db: ConfigReader,
@@ -198,5 +244,11 @@ export async function sendProviderMessage(
     contact
   );
 
-  return loaded.transport.send(target.target, message);
+  return attemptAcrossPhoneVariants({
+    db,
+    contactId: contact?.id ?? '',
+    provider: loaded.provider,
+    target,
+    attempt: (resolved) => loaded.transport.send(resolved, message),
+  });
 }
