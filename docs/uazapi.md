@@ -215,18 +215,31 @@ ainda falta. A página repete até terminar.
 
 Por isso:
 
-- **fechar a aba não perde nada.** O cursor fica no servidor; o próximo
-  clique continua da mesma conversa;
+- **fechar a aba não perde nada.** O cursor fica no servidor e tem duas
+  partes — quantas conversas já terminaram e quão fundo dentro da
+  conversa atual o último lote chegou. O próximo clique continua da
+  mesma mensagem, mesmo no meio de uma thread de milhares;
 - o botão muda para **Continuar de onde parou** quando um download foi
   interrompido;
 - rodar de novo depois de pronto só traz o que aconteceu desde então —
   cada mensagem é gravada pelo id do provedor, então nada entra duas
   vezes.
 
-**Limites.** São trazidas as conversas com atividade mais recente
-primeiro, até 600 delas, com as últimas 200 mensagens de cada uma. É o que
-um vendedor abre para ler; ir mais fundo multiplica o custo por páginas
-que ninguém rola.
+**Até onde vai.** Até o fim. Não há teto de conversas nem de mensagens
+por conversa: o download percorre todas as conversas e, dentro de cada
+uma, todas as mensagens, em páginas de 200. Ele só termina quando o
+provedor responde que não há mais conversas.
+
+O que é limitado é **cada requisição**, não o total: um lote guarda até
+500 mensagens e então devolve o cursor. É por isso que a barra de
+progresso avança em passos.
+
+**Se faltar alguma conversa.** A lista vem ordenada pela atividade mais
+recente, e essa ordem muda enquanto o download roda — uma conversa que
+recebe mensagem nova pula para o topo e empurra as outras. Numa conta
+muito movimentada, uma conversa na fronteira entre dois lotes pode passar
+despercebida. Rodar o download de novo mais tarde resolve: cada mensagem
+é gravada pelo id do provedor, então repetir não duplica nada.
 
 **O que o histórico não faz.** Mensagem importada é registro do que já
 aconteceu: aparece na conversa, mas **não** conta como não lida, **não**

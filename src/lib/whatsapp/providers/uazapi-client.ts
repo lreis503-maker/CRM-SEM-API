@@ -142,6 +142,10 @@ export interface UazapiChatPage {
  */
 export interface UazapiMessagePage {
   messages: Record<string, unknown>[];
+  /** True when the chat has older messages beyond this page. */
+  hasMore: boolean;
+  /** Offset to ask for next. Only meaningful when `hasMore`. */
+  nextOffset: number;
 }
 
 export interface UazapiDownloadedMedia {
@@ -168,6 +172,7 @@ export interface UazapiInstanceClient {
   findMessages(input: {
     chatId: string;
     limit: number;
+    offset?: number;
   }): Promise<UazapiMessagePage>;
 }
 
@@ -842,6 +847,8 @@ export function createUazapiInstanceClient(
         throw invalidRequest(FIND_MESSAGES.name, 'missing_chat_id');
       }
 
+      const offset = input.offset ?? 0;
+
       const body = await transport.request({
         operation: FIND_MESSAGES,
         method: 'POST',
@@ -849,11 +856,28 @@ export function createUazapiInstanceClient(
         body: {
           chatid: chatId,
           limit: input.limit,
+          offset,
           sort: '-messageTimestamp',
         },
       });
 
-      return { messages: asRecordList(body, 'messages', 'data') };
+      const messages = asRecordList(body, 'messages', 'data');
+      const record = asRecord(body) ?? {};
+
+      // Two sources, in order of trust. The provider's own answer wins
+      // when it gives one; otherwise a page that came back full is the
+      // only evidence that there is more, and a short page is the only
+      // evidence that there is not.
+      const declared =
+        typeof record.hasMore === 'boolean' ? record.hasMore : null;
+      const hasMore = declared ?? messages.length >= input.limit;
+
+      return {
+        messages,
+        hasMore,
+        nextOffset:
+          asFiniteNumber(record.nextOffset) ?? offset + messages.length,
+      };
     },
   };
 }

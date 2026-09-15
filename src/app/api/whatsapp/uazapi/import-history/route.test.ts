@@ -92,6 +92,7 @@ beforeEach(() => {
     id: 'run-1',
     status: 'running',
     chat_offset: 0,
+    message_offset: 0,
     chats_seen: 0,
     messages_imported: 0,
   };
@@ -104,6 +105,7 @@ beforeEach(() => {
     skippedMessages: 0,
     failedChats: 0,
     nextChatOffset: 3,
+    nextMessageOffset: 0,
     done: false,
   });
   vi.stubEnv('UAZAPI_ENABLED', 'true');
@@ -158,12 +160,37 @@ describe('POST /api/whatsapp/uazapi/import-history — access', () => {
 
 describe('POST /api/whatsapp/uazapi/import-history — progress', () => {
   it('resumes from the cursor the last batch left behind', async () => {
-    mocks.run = { ...mocks.run, chat_offset: 24 };
+    mocks.run = { ...mocks.run, chat_offset: 24, message_offset: 600 };
 
     await POST();
 
+    // Both halves. Without the message offset a batch stopped inside a
+    // long thread would restart that thread from its newest message and
+    // never reach the older half.
     expect(mocks.importUazapiHistoryBatch).toHaveBeenCalledWith(
-      expect.objectContaining({ chatOffset: 24 })
+      expect.objectContaining({ chatOffset: 24, messageOffset: 600 })
+    );
+  });
+
+  it('stores how deep into the current chat it got', async () => {
+    mocks.importUazapiHistoryBatch.mockResolvedValue({
+      chatsSeen: 0,
+      messagesImported: 500,
+      skippedMessages: 0,
+      failedChats: 0,
+      nextChatOffset: 3,
+      nextMessageOffset: 1000,
+      done: false,
+    });
+
+    await POST();
+
+    expect(mocks.updated).toContainEqual(
+      expect.objectContaining({
+        table: 'whatsapp_history_imports',
+        chat_offset: 3,
+        message_offset: 1000,
+      })
     );
   });
 
@@ -182,6 +209,7 @@ describe('POST /api/whatsapp/uazapi/import-history — progress', () => {
       // Absolute: where the next batch starts. The counters accumulate,
       // the cursor does not.
       nextChatOffset: 6,
+      nextMessageOffset: 0,
       done: false,
     });
 
@@ -207,6 +235,7 @@ describe('POST /api/whatsapp/uazapi/import-history — progress', () => {
       skippedMessages: 0,
       failedChats: 0,
       nextChatOffset: 1,
+      nextMessageOffset: 0,
       done: true,
     });
 
@@ -261,6 +290,7 @@ describe('POST /api/whatsapp/uazapi/import-history — storing', () => {
           skippedMessages: 0,
           failedChats: 0,
           nextChatOffset: 1,
+          nextMessageOffset: 0,
           done: true,
         };
       }

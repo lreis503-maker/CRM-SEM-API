@@ -33,6 +33,7 @@ interface ImportRun {
   id: string;
   status: string;
   chat_offset: number;
+  message_offset: number;
   chats_seen: number;
   messages_imported: number;
   error_code: string | null;
@@ -44,7 +45,7 @@ const CONFIG_COLUMNS =
   'id, account_id, user_id, provider, status, uazapi_instance_id, mirror_inbound_media';
 
 const RUN_COLUMNS =
-  'id, status, chat_offset, chats_seen, messages_imported, error_code, started_at, finished_at';
+  'id, status, chat_offset, message_offset, chats_seen, messages_imported, error_code, started_at, finished_at';
 
 async function loadConfig(db: Database, accountId: string) {
   const { data, error } = await db
@@ -193,6 +194,7 @@ export async function POST() {
       batch = await importUazapiHistoryBatch({
         client,
         chatOffset: run.chat_offset ?? 0,
+        messageOffset: run.message_offset ?? 0,
         store: (event: NormalizedInboundMessage) =>
           processInboundMessage({
             db,
@@ -245,6 +247,7 @@ export async function POST() {
       .from('whatsapp_history_imports')
       .update({
         chat_offset: batch.nextChatOffset,
+        message_offset: batch.nextMessageOffset,
         chats_seen: chatsSeen,
         messages_imported: messagesImported,
         status: batch.done ? 'completed' : 'running',

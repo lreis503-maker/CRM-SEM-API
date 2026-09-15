@@ -6,7 +6,7 @@
 --
 -- IMPORTANTE: rode as partes NA ORDEM, da 1 ate a 4.
 --
--- Contem: 038_broadcast_resume.sql ate 045_uazapi_groups_and_history.sql
+-- Contem: 038_broadcast_resume.sql ate 046_history_import_message_cursor.sql
 --
 -- E seguro rodar de novo se voce se perder: tudo aqui usa
 -- IF NOT EXISTS ou DROP ... IF EXISTS, entao repetir uma parte
@@ -948,3 +948,29 @@ ALTER TABLE whatsapp_history_imports ENABLE ROW LEVEL SECURITY;
 
 COMMENT ON TABLE whatsapp_history_imports IS
   'One row per history backfill run. Progress is polled by Settings; the partial unique index keeps a second run from starting while one is in flight.';
+
+
+-- ------------------------------------------------------------
+-- 046_history_import_message_cursor.sql
+-- ------------------------------------------------------------
+
+-- ============================================================
+-- 046_history_import_message_cursor
+--
+-- Um import agora percorre a conversa inteira, nao apenas as 200
+-- mensagens mais recentes. Uma thread com milhares de mensagens nao
+-- cabe em uma requisicao, entao o cursor precisa dizer tambem quao
+-- fundo dentro da conversa atual o ultimo lote chegou.
+--
+-- Aditiva. Linhas existentes ficam com 0, que e exatamente o que
+-- significavam antes: comecar a conversa atual da mensagem mais nova.
+-- ============================================================
+
+ALTER TABLE whatsapp_history_imports
+  ADD COLUMN IF NOT EXISTS message_offset INTEGER NOT NULL DEFAULT 0;
+
+COMMENT ON COLUMN whatsapp_history_imports.message_offset IS
+  'How far into the chat at chat_offset the last batch got. Zero means start that chat from its newest message. Together with chat_offset this is the whole resume cursor.';
+
+COMMENT ON COLUMN whatsapp_history_imports.chat_offset IS
+  'Chats already walked to the end. The chat AT this offset is the one message_offset refers to.';

@@ -9,6 +9,7 @@ import type { NormalizedInboundMessage } from '@/lib/whatsapp/inbound/types';
 
 import {
   HISTORY_CHATS_PER_BATCH,
+  HISTORY_MESSAGES_PER_PAGE,
   importUazapiHistoryBatch,
 } from './import-uazapi-history';
 
@@ -30,25 +31,43 @@ function messageRecord(id: string, overrides: Record<string, unknown> = {}) {
   };
 }
 
+/**
+ * A fake account. `chats` is the whole list the provider would page
+ * through; `messages` maps a chat id to its whole history, newest first,
+ * which the fake slices exactly as the real endpoint does.
+ */
 function reader(options: {
-  pages: UazapiChatSummary[][];
+  chats: UazapiChatSummary[];
   messages?: Record<string, Record<string, unknown>[]>;
   failChats?: string[];
 }) {
   const findChats = vi.fn(
-    async ({ offset }: { limit: number; offset: number }) => {
-      const size = options.pages[0]?.length ?? 0;
-      const index = size === 0 ? 0 : Math.floor(offset / size);
-      return { chats: options.pages[index] ?? [] } satisfies UazapiChatPage;
-    }
+    async ({ limit, offset }: { limit: number; offset: number }) =>
+      ({
+        chats: options.chats.slice(offset, offset + limit),
+      }) satisfies UazapiChatPage
   );
 
-  const findMessages = vi.fn(async ({ chatId }: { chatId: string }) => {
-    if (options.failChats?.includes(chatId)) throw new Error('upstream down');
-    return {
-      messages: options.messages?.[chatId] ?? [],
-    } satisfies UazapiMessagePage;
-  });
+  const findMessages = vi.fn(
+    async ({
+      chatId,
+      limit,
+      offset = 0,
+    }: {
+      chatId: string;
+      limit: number;
+      offset?: number;
+    }) => {
+      if (options.failChats?.includes(chatId)) throw new Error('upstream down');
+      const all = options.messages?.[chatId] ?? [];
+      const messages = all.slice(offset, offset + limit);
+      return {
+        messages,
+        hasMore: offset + messages.length < all.length,
+        nextOffset: offset + messages.length,
+      } satisfies UazapiMessagePage;
+    }
+  );
 
   return { findChats, findMessages };
 }
@@ -63,70 +82,258 @@ function collector() {
   };
 }
 
-describe('importUazapiHistoryBatch', () => {
-  it('walks the chats from where the last batch stopped', async () => {
-    const client = reader({ pages: [[chat('a@s.whatsapp.net')]] });
+function thread(chatId: string, count: number) {
+  return Array.from({ length: count }, (_, i) =>
+    messageRecord(`m-${i}`, { chatid: chatId })
+  );
+}
 
-    await importUazapiHistoryBatch({
-      client,
-      chatOffset: 40,
-      store: collector().store,
-    });
+const START = { chatOffset: 0, messageOffset: 0 };
 
-    expect(client.findChats).toHaveBeenCalledWith({
-      limit: HISTORY_CHATS_PER_BATCH,
-      offset: 40,
-    });
-  });
-
-  it('stores a chat oldest first, however the provider returned it', async () => {
+describe('importUazapiHistoryBatch — walking one chat to the end', () => {
+  it('pages through a chat larger than one request', async () => {
     const sink = collector();
     const client = reader({
-      pages: [[chat('5511999999999@s.whatsapp.net')]],
-      messages: {
-        // Newest first, which is what '-messageTimestamp' asks for.
-        '5511999999999@s.whatsapp.net': [
-          messageRecord('newest', { fromMe: true, text: 'ja respondi' }),
-          messageRecord('oldest'),
-        ],
-      },
+      chats: [chat('c@s.whatsapp.net')],
+      messages: { 'c@s.whatsapp.net': thread('c@s.whatsapp.net', 450) },
     });
 
     const result = await importUazapiHistoryBatch({
       client,
-      chatOffset: 0,
+      ...START,
       store: sink.store,
+      messagesPerPage: 200,
     });
 
-    expect(result.messagesImported).toBe(2);
-    // Written in the order they were said, so a thread interrupted
-    // half-way still reads from the top.
-    expect(sink.stored.map((event) => event.externalMessageId)).toEqual([
-      'oldest',
-      'newest',
-    ]);
-    // Our own half of the thread is the point: a seller reading the
-    // history needs to see what was already answered.
-    expect(sink.stored[1]?.fromMe).toBe(true);
+    // 450 messages is three pages. Before this the import took the first
+    // 200 and called the chat finished.
+    expect(client.findMessages).toHaveBeenCalledTimes(3);
+    expect(result.messagesImported).toBe(450);
+    expect(result.nextChatOffset).toBe(1);
+
+    // Not done yet: a short page of chats is not proof the account has no
+    // more. Only an empty one is — which costs one extra request at the
+    // very end and cannot truncate an import by accident.
+    expect(result.done).toBe(false);
+
+    const after = await importUazapiHistoryBatch({
+      client,
+      chatOffset: result.nextChatOffset,
+      messageOffset: result.nextMessageOffset,
+      store: collector().store,
+    });
+    expect(after.done).toBe(true);
+  });
+
+  it('asks for each page at the offset the last one ended on', async () => {
+    const client = reader({
+      chats: [chat('c@s.whatsapp.net')],
+      messages: { 'c@s.whatsapp.net': thread('c@s.whatsapp.net', 250) },
+    });
+
+    await importUazapiHistoryBatch({
+      client,
+      ...START,
+      store: collector().store,
+      messagesPerPage: 100,
+    });
+
+    const offsets = client.findMessages.mock.calls.map((c) => c[0].offset);
+    expect(offsets).toEqual([0, 100, 200]);
+  });
+
+  it('resumes a chat it was in the middle of', async () => {
+    const sink = collector();
+    const client = reader({
+      chats: [chat('c@s.whatsapp.net')],
+      messages: { 'c@s.whatsapp.net': thread('c@s.whatsapp.net', 300) },
+    });
+
+    await importUazapiHistoryBatch({
+      client,
+      chatOffset: 0,
+      messageOffset: 200,
+      store: sink.store,
+      messagesPerPage: 200,
+    });
+
+    // Only what was left, not the 200 already stored.
+    expect(sink.stored).toHaveLength(100);
+    expect(client.findMessages.mock.calls[0][0].offset).toBe(200);
+  });
+});
+
+describe('importUazapiHistoryBatch — bounding one request', () => {
+  it('stops mid-chat when the message budget runs out', async () => {
+    const sink = collector();
+    const client = reader({
+      chats: [chat('c@s.whatsapp.net')],
+      messages: { 'c@s.whatsapp.net': thread('c@s.whatsapp.net', 1000) },
+    });
+
+    const result = await importUazapiHistoryBatch({
+      client,
+      ...START,
+      store: sink.store,
+      messagesPerPage: 100,
+      messageBudget: 250,
+    });
+
+    expect(result.done).toBe(false);
+    expect(sink.stored.length).toBeGreaterThanOrEqual(250);
+    // The cursor points back into the SAME chat, not past it.
+    expect(result.nextChatOffset).toBe(0);
+    expect(result.nextMessageOffset).toBe(sink.stored.length);
+  });
+
+  it('carries on from exactly where the budget stopped it', async () => {
+    const history = thread('c@s.whatsapp.net', 500);
+    const client = reader({
+      chats: [chat('c@s.whatsapp.net')],
+      messages: { 'c@s.whatsapp.net': history },
+    });
+
+    const all: string[] = [];
+    let cursor = { ...START };
+
+    for (let guard = 0; guard < 20; guard += 1) {
+      const sink = collector();
+      const result = await importUazapiHistoryBatch({
+        client,
+        ...cursor,
+        store: sink.store,
+        messagesPerPage: 100,
+        messageBudget: 150,
+      });
+      all.push(...sink.stored.map((e) => e.externalMessageId));
+      if (result.done) break;
+      cursor = {
+        chatOffset: result.nextChatOffset,
+        messageOffset: result.nextMessageOffset,
+      };
+    }
+
+    // Every message exactly once: nothing lost at a batch boundary, and
+    // nothing fetched twice.
+    expect(all).toHaveLength(500);
+    expect(new Set(all).size).toBe(500);
+  });
+
+  it('stops after a page of chats even when they are small', async () => {
+    const chats = Array.from({ length: 40 }, (_, i) =>
+      chat(`c${i}@s.whatsapp.net`)
+    );
+    const client = reader({ chats });
+
+    const result = await importUazapiHistoryBatch({
+      client,
+      ...START,
+      store: collector().store,
+      chatsPerBatch: 8,
+    });
+
+    expect(result.chatsSeen).toBe(8);
+    expect(result.nextChatOffset).toBe(8);
+    expect(result.done).toBe(false);
+  });
+});
+
+describe('importUazapiHistoryBatch — walking every chat', () => {
+  it('reaches the last chat however many there are', async () => {
+    const chats = Array.from({ length: 53 }, (_, i) =>
+      chat(`c${i}@s.whatsapp.net`)
+    );
+    const messages = Object.fromEntries(
+      chats.map((c) => [c.id, thread(c.id, 3)])
+    );
+    const client = reader({ chats, messages });
+
+    const seen: string[] = [];
+    let cursor = { ...START };
+
+    for (let guard = 0; guard < 100; guard += 1) {
+      const sink = collector();
+      const result = await importUazapiHistoryBatch({
+        client,
+        ...cursor,
+        store: sink.store,
+        chatsPerBatch: 8,
+      });
+      seen.push(...sink.stored.map((e) => e.chat.externalId ?? ''));
+      if (result.done) break;
+      cursor = {
+        chatOffset: result.nextChatOffset,
+        messageOffset: result.nextMessageOffset,
+      };
+    }
+
+    // No ceiling: the walk ends because the account ran out of chats.
+    expect(new Set(seen).size).toBe(53);
+  });
+
+  it('is done only when the provider runs out of chats', async () => {
+    const client = reader({ chats: [] });
+
+    const result = await importUazapiHistoryBatch({
+      client,
+      ...START,
+      store: collector().store,
+    });
+
+    expect(result).toMatchObject({ done: true, chatsSeen: 0 });
+    expect(client.findMessages).not.toHaveBeenCalled();
+  });
+
+  it('is not done just because a chats page came back full', async () => {
+    const chats = Array.from({ length: HISTORY_CHATS_PER_BATCH }, (_, i) =>
+      chat(`c${i}@s.whatsapp.net`)
+    );
+    const client = reader({ chats });
+
+    const result = await importUazapiHistoryBatch({
+      client,
+      ...START,
+      store: collector().store,
+    });
+
+    expect(result.done).toBe(false);
+  });
+});
+
+describe('importUazapiHistoryBatch — what it stores', () => {
+  it('keeps our own half of the thread', async () => {
+    const sink = collector();
+    const client = reader({
+      chats: [chat('c@s.whatsapp.net')],
+      messages: {
+        'c@s.whatsapp.net': [
+          messageRecord('mine', {
+            chatid: 'c@s.whatsapp.net',
+            fromMe: true,
+            text: 'ja respondi',
+          }),
+          messageRecord('theirs', { chatid: 'c@s.whatsapp.net' }),
+        ],
+      },
+    });
+
+    await importUazapiHistoryBatch({ client, ...START, store: sink.store });
+
+    expect(sink.stored.map((e) => e.fromMe).sort()).toEqual([false, true]);
   });
 
   it('names a group thread from the chat listing', async () => {
     const sink = collector();
     const client = reader({
-      pages: [[chat('12345-67890@g.us', { name: 'Vendas SP' })]],
+      chats: [chat('12345-67890@g.us', { name: 'Vendas SP' })],
       messages: {
         '12345-67890@g.us': [
-          // The stored row carries no group subject; only the listing does.
           messageRecord('m-1', { chatid: '12345-67890@g.us' }),
         ],
       },
     });
 
-    await importUazapiHistoryBatch({
-      client,
-      chatOffset: 0,
-      store: sink.store,
-    });
+    await importUazapiHistoryBatch({ client, ...START, store: sink.store });
 
     expect(sink.stored[0]?.chat).toMatchObject({
       externalId: '12345-67890@g.us',
@@ -138,7 +345,7 @@ describe('importUazapiHistoryBatch', () => {
   it('keeps a name the message itself carried', async () => {
     const sink = collector();
     const client = reader({
-      pages: [[chat('12345-67890@g.us', { name: 'from the listing' })]],
+      chats: [chat('12345-67890@g.us', { name: 'from the listing' })],
       messages: {
         '12345-67890@g.us': [
           messageRecord('m-1', {
@@ -149,87 +356,38 @@ describe('importUazapiHistoryBatch', () => {
       },
     });
 
-    await importUazapiHistoryBatch({
-      client,
-      chatOffset: 0,
-      store: sink.store,
-    });
+    await importUazapiHistoryBatch({ client, ...START, store: sink.store });
 
     expect(sink.stored[0]?.chat.name).toBe('from the message');
   });
 
-  it('asks for the newest messages of each chat, bounded', async () => {
-    const client = reader({ pages: [[chat('a@s.whatsapp.net')]] });
+  it('defaults to a sane page size', async () => {
+    const client = reader({ chats: [chat('c@s.whatsapp.net')] });
 
     await importUazapiHistoryBatch({
       client,
-      chatOffset: 0,
-      store: collector().store,
-      messagesPerChat: 25,
-    });
-
-    expect(client.findMessages).toHaveBeenCalledWith({
-      chatId: 'a@s.whatsapp.net',
-      limit: 25,
-    });
-  });
-
-  it('reports that it is done when a page comes back empty', async () => {
-    const client = reader({ pages: [[]] });
-
-    const result = await importUazapiHistoryBatch({
-      client,
-      chatOffset: 0,
+      ...START,
       store: collector().store,
     });
 
-    expect(result).toMatchObject({ done: true, chatsSeen: 0 });
-    expect(client.findMessages).not.toHaveBeenCalled();
-  });
-
-  it('reports more work when the page came back full', async () => {
-    const full = Array.from({ length: HISTORY_CHATS_PER_BATCH }, (_, index) =>
-      chat(`c${index}@s.whatsapp.net`)
+    expect(client.findMessages.mock.calls[0][0].limit).toBe(
+      HISTORY_MESSAGES_PER_PAGE
     );
-    const client = reader({ pages: [full] });
-
-    const result = await importUazapiHistoryBatch({
-      client,
-      chatOffset: 0,
-      store: collector().store,
-    });
-
-    expect(result.done).toBe(false);
-    expect(result.nextChatOffset).toBe(HISTORY_CHATS_PER_BATCH);
   });
+});
 
-  it('stops at the chat ceiling instead of walking forever', async () => {
-    const full = Array.from({ length: HISTORY_CHATS_PER_BATCH }, (_, index) =>
-      chat(`c${index}@s.whatsapp.net`)
-    );
-    const client = reader({ pages: [full] });
-
-    const result = await importUazapiHistoryBatch({
-      client,
-      chatOffset: HISTORY_CHATS_PER_BATCH,
-      store: collector().store,
-      maxChats: HISTORY_CHATS_PER_BATCH * 2,
-    });
-
-    expect(result.done).toBe(true);
-  });
-
+describe('importUazapiHistoryBatch — failures', () => {
   it('skips a chat it cannot read rather than losing the whole batch', async () => {
     const sink = collector();
     const client = reader({
-      pages: [[chat('broken@s.whatsapp.net'), chat('ok@s.whatsapp.net')]],
+      chats: [chat('broken@s.whatsapp.net'), chat('ok@s.whatsapp.net')],
       messages: { 'ok@s.whatsapp.net': [messageRecord('m-1')] },
       failChats: ['broken@s.whatsapp.net'],
     });
 
     const result = await importUazapiHistoryBatch({
       client,
-      chatOffset: 0,
+      ...START,
       store: sink.store,
     });
 
@@ -237,21 +395,39 @@ describe('importUazapiHistoryBatch', () => {
     expect(result.messagesImported).toBe(1);
   });
 
+  it('moves past an unreadable chat instead of retrying it forever', async () => {
+    const client = reader({
+      chats: [chat('broken@s.whatsapp.net')],
+      failChats: ['broken@s.whatsapp.net'],
+    });
+
+    const result = await importUazapiHistoryBatch({
+      client,
+      ...START,
+      store: collector().store,
+    });
+
+    // The cursor has to advance, or the next batch reads the same broken
+    // chat and the import never finishes.
+    expect(result.nextChatOffset).toBe(1);
+    expect(result.nextMessageOffset).toBe(0);
+  });
+
   it('skips a row the normalizer refuses without failing the chat', async () => {
     const sink = collector();
     const client = reader({
-      pages: [[chat('5511999999999@s.whatsapp.net')]],
+      chats: [chat('c@s.whatsapp.net')],
       messages: {
-        '5511999999999@s.whatsapp.net': [
+        'c@s.whatsapp.net': [
           { nothing: 'usable' },
-          messageRecord('m-1'),
+          messageRecord('m-1', { chatid: 'c@s.whatsapp.net' }),
         ],
       },
     });
 
     const result = await importUazapiHistoryBatch({
       client,
-      chatOffset: 0,
+      ...START,
       store: sink.store,
     });
 
@@ -261,14 +437,18 @@ describe('importUazapiHistoryBatch', () => {
 
   it('stops the batch when storing fails, so nothing is silently lost', async () => {
     const client = reader({
-      pages: [[chat('5511999999999@s.whatsapp.net')]],
-      messages: { '5511999999999@s.whatsapp.net': [messageRecord('m-1')] },
+      chats: [chat('c@s.whatsapp.net')],
+      messages: {
+        'c@s.whatsapp.net': [
+          messageRecord('m-1', { chatid: 'c@s.whatsapp.net' }),
+        ],
+      },
     });
 
     await expect(
       importUazapiHistoryBatch({
         client,
-        chatOffset: 0,
+        ...START,
         store: async () => {
           throw new Error('database gone');
         },

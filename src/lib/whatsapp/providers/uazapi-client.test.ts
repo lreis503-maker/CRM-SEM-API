@@ -456,6 +456,84 @@ describe('UAZAPI history reads', () => {
     expect(page.messages).toEqual([{ messageid: 'm-1', text: 'oi' }]);
   });
 
+  it('asks for a later page of the same chat', async () => {
+    const fetchImpl = fetchReturning({ messages: [] });
+
+    await instanceClient(fetchImpl).findMessages({
+      chatId: '5511999999999@s.whatsapp.net',
+      limit: 200,
+      offset: 400,
+    });
+
+    expect(lastBody(fetchImpl)).toMatchObject({
+      chatid: '5511999999999@s.whatsapp.net',
+      limit: 200,
+      offset: 400,
+    });
+  });
+
+  it('reports more pages when the provider says so', async () => {
+    const fetchImpl = fetchReturning({
+      messages: [{ messageid: 'm-1' }],
+      hasMore: true,
+      nextOffset: 200,
+    });
+
+    const page = await instanceClient(fetchImpl).findMessages({
+      chatId: 'c@s.whatsapp.net',
+      limit: 200,
+      offset: 0,
+    });
+
+    expect(page).toMatchObject({ hasMore: true, nextOffset: 200 });
+  });
+
+  it('infers there is more from a full page when the provider stays quiet', async () => {
+    // The contract does not guarantee hasMore, and the live payloads have
+    // already proved to differ from it once. A page that came back full is
+    // the only other evidence there is.
+    const fetchImpl = fetchReturning({
+      messages: Array.from({ length: 3 }, (_, i) => ({ messageid: `m-${i}` })),
+    });
+
+    const page = await instanceClient(fetchImpl).findMessages({
+      chatId: 'c@s.whatsapp.net',
+      limit: 3,
+      offset: 0,
+    });
+
+    expect(page.hasMore).toBe(true);
+    expect(page.nextOffset).toBe(3);
+  });
+
+  it('reports the end of a chat from a short page', async () => {
+    const fetchImpl = fetchReturning({ messages: [{ messageid: 'm-1' }] });
+
+    const page = await instanceClient(fetchImpl).findMessages({
+      chatId: 'c@s.whatsapp.net',
+      limit: 200,
+      offset: 0,
+    });
+
+    expect(page.hasMore).toBe(false);
+  });
+
+  it('believes the provider over the page length', async () => {
+    // A full page that the provider says is the last one.
+    const fetchImpl = fetchReturning({
+      messages: [{ messageid: 'm-1' }, { messageid: 'm-2' }],
+      hasMore: false,
+    });
+
+    const page = await instanceClient(fetchImpl).findMessages({
+      chatId: 'c@s.whatsapp.net',
+      limit: 2,
+      offset: 0,
+    });
+
+    expect(page.hasMore).toBe(false);
+  });
+
   it('refuses to read messages without naming a chat', async () => {
     const fetchImpl = fetchReturning({ messages: [] });
 
