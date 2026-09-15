@@ -8,6 +8,7 @@ import { createUazapiMediaResolver } from '@/lib/whatsapp/inbound/uazapi-media';
 import {
   normalizeUazapiWebhook,
   uazapiInstanceIdOf,
+  uazapiInstanceNameOf,
 } from '@/lib/whatsapp/inbound/uazapi-normalizer';
 import { processInboundMessage } from '@/lib/whatsapp/inbound/process-inbound-message';
 import { processStatusUpdate } from '@/lib/whatsapp/inbound/process-status-update';
@@ -43,13 +44,14 @@ export const maxDuration = 60;
 const MAX_BODY_BYTES = 1024 * 1024;
 
 const CONFIG_COLUMNS =
-  'id, account_id, user_id, provider, status, uazapi_instance_id, mirror_inbound_media';
+  'id, account_id, user_id, provider, status, uazapi_instance_id, uazapi_instance_name, mirror_inbound_media';
 
 interface UazapiConfigRow {
   id: string;
   account_id: string;
   user_id: string;
   uazapi_instance_id: string | null;
+  uazapi_instance_name: string | null;
   mirror_inbound_media?: boolean | null;
 }
 
@@ -162,13 +164,20 @@ export async function POST(
 
     // When the payload names an instance it must be this account's. A
     // mismatch means someone replayed another instance's event at this
-    // secret, and it gets the same blank 404.
-    const claimedInstance = uazapiInstanceIdOf(payload);
-    if (
-      claimedInstance !== null &&
+    // secret, and it gets the same blank 404. Deliveries carry the name;
+    // the id is checked too for the shape the contract documents.
+    const claimedId = uazapiInstanceIdOf(payload);
+    const claimedName = uazapiInstanceNameOf(payload);
+    const idMismatch =
+      claimedId !== null &&
       config.uazapi_instance_id !== null &&
-      claimedInstance !== config.uazapi_instance_id
-    ) {
+      claimedId !== config.uazapi_instance_id;
+    const nameMismatch =
+      claimedName !== null &&
+      config.uazapi_instance_name !== null &&
+      claimedName !== config.uazapi_instance_name;
+
+    if (idMismatch || nameMismatch) {
       console.warn(
         '[uazapi-webhook] instance mismatch for account',
         config.account_id
@@ -201,15 +210,26 @@ export async function POST(
       return NextResponse.json({ status: 'quarantined' }, { status: 200 });
     }
 
-    const event = result.event;
+    // A read receipt can acknowledge several messages at once, so a
+    // delivery is a list, not a single event.
+    const connectionEvents = result.events.filter(
+      (event) => event.kind === 'connection'
+    );
+    const statusEvents = result.events.filter(
+      (event) => event.kind === 'status'
+    );
+    const messageEvents = result.events.filter(
+      (event) => event.kind === 'message'
+    );
 
-    if (event.kind === 'connection') {
+    for (const event of connectionEvents) {
       await applyConnectionUpdate(db, config, event);
-      return NextResponse.json({ status: 'received' }, { status: 200 });
+    }
+    for (const event of statusEvents) {
+      await processStatusUpdate({ db, event });
     }
 
-    if (event.kind === 'status') {
-      await processStatusUpdate({ db, event });
+    if (messageEvents.length === 0) {
       return NextResponse.json({ status: 'received' }, { status: 200 });
     }
 
@@ -229,28 +249,30 @@ export async function POST(
           })
         : null;
 
-    await processInboundMessage({
-      db,
-      event,
-      accountId: config.account_id,
-      configOwnerUserId: config.user_id,
-      resolveMedia: client
-        ? createUazapiMediaResolver({
-            client,
-            // Default ON, matching the column default: losing an
-            // attachment is the failure mode worth avoiding.
-            storage:
-              config.mirror_inbound_media !== false
-                ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  (db as any).storage
-                : null,
-            accountId: config.account_id,
-            occurredAt: event.occurredAt,
-          })
-        : // No usable client: store the message without its attachment
-          // rather than dropping the message itself.
-          async (media) => ({ url: null, mimeType: media.mimeType }),
-    });
+    for (const event of messageEvents) {
+      await processInboundMessage({
+        db,
+        event,
+        accountId: config.account_id,
+        configOwnerUserId: config.user_id,
+        resolveMedia: client
+          ? createUazapiMediaResolver({
+              client,
+              // Default ON, matching the column default: losing an
+              // attachment is the failure mode worth avoiding.
+              storage:
+                config.mirror_inbound_media !== false
+                  ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (db as any).storage
+                  : null,
+              accountId: config.account_id,
+              occurredAt: event.occurredAt,
+            })
+          : // No usable client: store the message without its attachment
+            // rather than dropping the message itself.
+            async (media) => ({ url: null, mimeType: media.mimeType }),
+      });
+    }
 
     return NextResponse.json({ status: 'received' }, { status: 200 });
   } catch (error) {

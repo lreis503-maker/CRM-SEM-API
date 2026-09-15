@@ -35,7 +35,7 @@ function textData(overrides: Record<string, unknown> = {}) {
 
 function expectMessage(result: ReturnType<typeof normalizeUazapiWebhook>) {
   expect(result.outcome).toBe('event');
-  const event = (result as { event: NormalizedInboundMessage }).event;
+  const event = (result as { events: NormalizedInboundMessage[] }).events[0];
   expect(event.kind).toBe('message');
   return event;
 }
@@ -290,7 +290,7 @@ describe('normalizeUazapiWebhook — statuses', () => {
     });
 
     expect(result.outcome).toBe('event');
-    const event = (result as { event: NormalizedStatusUpdate }).event;
+    const event = (result as { events: NormalizedStatusUpdate[] }).events[0];
     expect(event).toMatchObject({
       kind: 'status',
       provider: 'uazapi',
@@ -312,13 +312,13 @@ describe('normalizeUazapiWebhook — statuses', () => {
       },
     });
 
-    expect((result as { event: NormalizedStatusUpdate }).event.failure).toEqual(
-      {
-        code: null,
-        title: 'WhatsApp server rejected the message',
-        details: null,
-      }
-    );
+    expect(
+      (result as { events: NormalizedStatusUpdate[] }).events[0].failure
+    ).toEqual({
+      code: null,
+      title: 'WhatsApp server rejected the message',
+      details: null,
+    });
   });
 
   it('ignores a lifecycle state the CRM does not track', () => {
@@ -356,7 +356,8 @@ describe('normalizeUazapiWebhook — connection', () => {
       });
 
       expect(result.outcome).toBe('event');
-      const event = (result as { event: NormalizedConnectionUpdate }).event;
+      const event = (result as { events: NormalizedConnectionUpdate[] })
+        .events[0];
       expect(event).toMatchObject({
         kind: 'connection',
         provider: 'uazapi',

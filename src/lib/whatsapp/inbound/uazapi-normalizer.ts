@@ -37,7 +37,7 @@ export type UazapiQuarantineReason =
   | 'unknown_connection_state';
 
 export type UazapiNormalizeResult =
-  | { outcome: 'event'; event: NormalizedInboundEvent }
+  | { outcome: 'event'; events: NormalizedInboundEvent[] }
   | { outcome: 'ignored'; reason: UazapiIgnoreReason }
   | {
       outcome: 'quarantine';
@@ -126,26 +126,53 @@ function ignored(reason: UazapiIgnoreReason): UazapiNormalizeResult {
   return { outcome: 'ignored', reason };
 }
 
-/** The instance a payload claims to come from, for the route's check. */
+/**
+ * The instance id a payload claims to come from, when it names one.
+ * Deliveries observed in practice carry `instanceName` instead, so this
+ * is usually null — see `uazapiInstanceNameOf`.
+ */
 export function uazapiInstanceIdOf(payload: unknown): string | null {
   const body = asRecord(payload);
   if (!body) return null;
+  // On a connection delivery `instance` is an object; asText rejects it.
   return asText(body.instance) ?? asText(body.instance_id);
 }
 
-function eventNameOf(body: Record<string, unknown>): string | null {
-  return asText(body.event) ?? asText(body.EventType) ?? asText(body.type);
+/** The instance name a payload claims to come from, when it names one. */
+export function uazapiInstanceNameOf(payload: unknown): string | null {
+  const body = asRecord(payload);
+  if (!body) return null;
+  return (
+    asText(body.instanceName) ?? asText(asRecord(body.instance)?.name ?? null)
+  );
 }
 
-/** UAZAPI timestamps are milliseconds; a missing one means "just now". */
+function eventNameOf(body: Record<string, unknown>): string | null {
+  // `EventType` is what the provider actually sends. `event` is what the
+  // contract documents, and on a status delivery it is an object rather
+  // than a name, which `asText` rejects.
+  return asText(body.EventType) ?? asText(body.event) ?? asText(body.type);
+}
+
+/**
+ * Anything below this is far too small to be milliseconds since the epoch
+ * (it would be 1973), so it is seconds. Messages arrive in milliseconds
+ * and read receipts in seconds, in the same delivery.
+ */
+const SECONDS_CEILING = 1e11;
+
+/** Missing or unreadable means "just now". */
 function timestampToIso(value: unknown): string {
-  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-    return new Date(value).toISOString();
-  }
-  if (typeof value === 'string' && /^\d+$/.test(value)) {
-    return new Date(Number(value)).toISOString();
-  }
-  return new Date().toISOString();
+  const raw =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && /^\d+$/.test(value)
+        ? Number(value)
+        : NaN;
+
+  if (!Number.isFinite(raw) || raw <= 0) return new Date().toISOString();
+
+  return new Date(raw < SECONDS_CEILING ? raw * 1000 : raw).toISOString();
 }
 
 /** `5511999999999@s.whatsapp.net` -> `5511999999999`. */
@@ -277,62 +304,96 @@ function normalizeMessage(
     replyToExternalId: asText(data.quoted),
   };
 
-  return { outcome: 'event', event };
+  return { outcome: 'event', events: [event] };
+}
+
+/** A receipt can acknowledge several messages in one delivery. */
+function statusMessageIds(data: Record<string, unknown>): string[] {
+  const ids = data.MessageIDs ?? data.messageIds;
+  if (Array.isArray(ids)) {
+    return ids.map(asText).filter((id): id is string => id !== null);
+  }
+  const single = asText(data.messageid) ?? asText(data.id);
+  return single === null ? [] : [single];
 }
 
 function normalizeStatus(
+  body: Record<string, unknown>,
   data: Record<string, unknown>,
   eventName: string | null
 ): UazapiNormalizeResult {
-  const messageId = asText(data.messageid) ?? asText(data.id);
-  if (messageId === null) {
+  const messageIds = statusMessageIds(data);
+  if (messageIds.length === 0) {
     return quarantine('missing_message_id', eventName);
   }
 
-  const raw = (asText(data.status) ?? '').toLowerCase();
+  // `state` sits beside the envelope, `Type` inside it, `status` is what
+  // the contract documents.
+  const raw = (
+    asText(body.state) ??
+    asText(data.Type) ??
+    asText(data.status) ??
+    ''
+  ).toLowerCase();
   if (UNTRACKED_STATUS_VALUES.has(raw)) return ignored('untracked_status');
 
   const status = STATUS_VALUES[raw];
   if (!status) return quarantine('unknown_message_type', eventName);
 
-  const reason = asText(data.error);
+  const reason = asText(data.error) ?? asText(body.error);
+  const occurredAt = timestampToIso(
+    data.Timestamp ?? data.messageTimestamp ?? body.timestamp
+  );
 
-  const event: NormalizedStatusUpdate = {
-    kind: 'status',
-    provider: 'uazapi',
-    externalMessageId: messageId,
-    status,
-    occurredAt: timestampToIso(data.messageTimestamp),
-    // UAZAPI reports a human-readable reason, not a numeric code.
-    failure:
-      status === 'failed' && reason
-        ? { code: null, title: reason, details: null }
-        : null,
-  };
+  const events = messageIds.map<NormalizedStatusUpdate>(
+    (externalMessageId) => ({
+      kind: 'status',
+      provider: 'uazapi',
+      externalMessageId,
+      status,
+      occurredAt,
+      // UAZAPI reports a human-readable reason, not a numeric code.
+      failure:
+        status === 'failed' && reason
+          ? { code: null, title: reason, details: null }
+          : null,
+    })
+  );
 
-  return { outcome: 'event', event };
+  return { outcome: 'event', events };
 }
 
 function normalizeConnection(
+  body: Record<string, unknown>,
   data: Record<string, unknown>,
   eventName: string | null
 ): UazapiNormalizeResult {
-  const raw = (asText(data.status) ?? asText(data.state) ?? '').toLowerCase();
+  const raw = (
+    asText(data.status) ??
+    asText(data.state) ??
+    asText(body.state) ??
+    ''
+  ).toLowerCase();
   if (!CONNECTION_STATES.has(raw)) {
     return quarantine('unknown_connection_state', eventName);
   }
+
+  const owner = asText(body.owner) ?? asText(data.owner) ?? asText(data.jid);
 
   const event: NormalizedConnectionUpdate = {
     kind: 'connection',
     provider: 'uazapi',
     status: raw as NormalizedConnectionUpdate['status'],
-    occurredAt: timestampToIso(data.messageTimestamp),
-    phone: phoneFromJid(asText(data.owner) ?? asText(data.jid)) || null,
-    displayName: asText(data.profileName),
-    avatarUrl: asText(data.profilePicUrl),
+    occurredAt: timestampToIso(data.Timestamp ?? body.timestamp),
+    // The owner is a bare number here, not a JID.
+    phone: (phoneFromJid(owner) || (owner ?? '')).match(/^\d{8,15}$/)
+      ? phoneFromJid(owner) || owner
+      : null,
+    displayName: asText(data.profileName) ?? asText(body.profileName),
+    avatarUrl: asText(data.profilePicUrl) ?? asText(body.profilePicUrl),
   };
 
-  return { outcome: 'event', event };
+  return { outcome: 'event', events: [event] };
 }
 
 export function normalizeUazapiWebhook(
@@ -352,10 +413,18 @@ export function normalizeUazapiWebhook(
     return quarantine('unknown_event', eventName);
   }
 
-  const data = asRecord(body.data);
+  // The contract promises a `data` wrapper. Real deliveries put the
+  // message under `message`, a receipt under `event` and the connection
+  // under `instance`. Both shapes are accepted.
+  const data = isMessage
+    ? (asRecord(body.message) ?? asRecord(body.data))
+    : isStatus
+      ? (asRecord(body.event) ?? asRecord(body.data))
+      : (asRecord(body.instance) ?? asRecord(body.data));
+
   if (!data) return quarantine('missing_data', eventName);
 
   if (isMessage) return normalizeMessage(data, eventName);
-  if (isStatus) return normalizeStatus(data, eventName);
-  return normalizeConnection(data, eventName);
+  if (isStatus) return normalizeStatus(body, data, eventName);
+  return normalizeConnection(body, data, eventName);
 }
