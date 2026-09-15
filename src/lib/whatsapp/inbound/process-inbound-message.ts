@@ -18,6 +18,11 @@ import { findExistingContact, isUniqueViolation } from '../../contacts/dedupe';
 import { reopenClosedConversation } from '../../conversations/reopen';
 import { dispatchInboundToFlows } from '../../flows/engine';
 import { dispatchWebhookEvent } from '../../webhooks/deliver';
+import {
+  attachExternalIdentity,
+  findContactIdByExternalIdentity,
+  type ExternalIdentity,
+} from './contact-identities';
 import { normalizePhone } from '../phone-utils';
 import type { WhatsAppProvider } from '../providers/types';
 import type {
@@ -117,13 +122,57 @@ function contactIdentityPatch(
   return Object.keys(patch).length > 0 ? patch : null;
 }
 
+/**
+ * The provider identifier to file under `whatsapp_contact_identities`.
+ * Null for Meta, whose BSUID lives on the contact row itself.
+ */
+function externalIdentityOf(
+  provider: WhatsAppProvider,
+  sender: NormalizedSender
+): ExternalIdentity | null {
+  if (
+    sender.externalId === null ||
+    sender.externalIdKind === null ||
+    sender.externalIdKind === 'bsuid'
+  ) {
+    return null;
+  }
+  return {
+    accountId: '',
+    provider,
+    externalId: sender.externalId,
+    kind: sender.externalIdKind,
+  };
+}
+
+async function loadContactById(
+  db: InboundDatabase,
+  accountId: string,
+  contactId: string
+): Promise<ContactRow | null> {
+  const { data, error } = await db
+    .from('contacts')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('id', contactId)
+    .maybeSingle();
+  if (error) {
+    console.error('[inbound] contact load failed:', error.message);
+    return null;
+  }
+  return data ?? null;
+}
+
 async function findOrCreateContact(
   db: InboundDatabase,
   accountId: string,
   configOwnerUserId: string,
+  provider: WhatsAppProvider,
   sender: NormalizedSender
 ): Promise<{ contact: ContactRow; wasCreated: boolean } | null> {
   const waUserId = bsuidOf(sender);
+  const identity = externalIdentityOf(provider, sender);
+  const scopedIdentity = identity ? { ...identity, accountId } : null;
 
   // BSUID first when we have one. It is stable per (user, business
   // portfolio) and, unlike the phone number, Meta keeps sending it — so it
@@ -139,6 +188,17 @@ async function findOrCreateContact(
   // (issue #212).
   if (!existingContact && sender.phone) {
     existingContact = await findExistingContact(db, accountId, sender.phone);
+  }
+
+  // Last resort: the provider identifier we filed the last time this
+  // person wrote. This is what resolves a LID-only delivery — one that
+  // carries no phone number at all — back onto the existing contact
+  // instead of forking a second one.
+  if (!existingContact && scopedIdentity) {
+    const linkedId = await findContactIdByExternalIdentity(db, scopedIdentity);
+    if (linkedId) {
+      existingContact = await loadContactById(db, accountId, linkedId);
+    }
   }
 
   if (existingContact) {
@@ -161,6 +221,20 @@ async function findOrCreateContact(
         );
       } else if (updated) {
         existingContact = updated;
+      }
+    }
+    if (scopedIdentity) {
+      // File the identifier against this contact so the next delivery
+      // resolves even if the phone number is withheld. If a concurrent
+      // delivery already claimed it for another row, that row wins.
+      const owner = await attachExternalIdentity(
+        db,
+        scopedIdentity,
+        existingContact.id
+      );
+      if (owner !== existingContact.id) {
+        const winner = await loadContactById(db, accountId, owner);
+        if (winner) return { contact: winner, wasCreated: false };
       }
     }
     return { contact: existingContact, wasCreated: false };
@@ -205,6 +279,10 @@ async function findOrCreateContact(
     }
     console.error('Error creating contact:', createError);
     return null;
+  }
+
+  if (scopedIdentity) {
+    await attachExternalIdentity(db, scopedIdentity, newContact.id);
   }
 
   return { contact: newContact, wasCreated: true };
@@ -282,14 +360,16 @@ export async function resolveInboundParticipants(input: {
   db: InboundDatabase;
   accountId: string;
   configOwnerUserId: string;
+  provider: WhatsAppProvider;
   sender: NormalizedSender;
 }): Promise<InboundParticipants | null> {
-  const { db, accountId, configOwnerUserId, sender } = input;
+  const { db, accountId, configOwnerUserId, provider, sender } = input;
 
   const contactOutcome = await findOrCreateContact(
     db,
     accountId,
     configOwnerUserId,
+    provider,
     sender
   );
   if (!contactOutcome) return null;
@@ -402,6 +482,7 @@ export async function processInboundMessage(
       db,
       accountId,
       configOwnerUserId,
+      provider: event.provider,
       sender: event.sender,
     }));
   if (!participants) return;

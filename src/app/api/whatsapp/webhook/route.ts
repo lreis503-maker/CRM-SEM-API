@@ -416,6 +416,7 @@ async function handleMetaMessage(input: {
       db: supabaseAdmin(),
       accountId,
       configOwnerUserId,
+      provider: 'meta',
       sender: event.sender,
     })
     if (!participants) return
