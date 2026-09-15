@@ -120,6 +120,30 @@ export interface UazapiSendResult {
   timestamp: number | null;
 }
 
+/** One thread as UAZAPI lists it. Carries no message content. */
+export interface UazapiChatSummary {
+  /** The chat JID, which is also how messages are asked for. */
+  id: string;
+  /** Group subject or contact push name, when the provider knows one. */
+  name: string | null;
+  isGroup: boolean;
+}
+
+export interface UazapiChatPage {
+  chats: UazapiChatSummary[];
+}
+
+/**
+ * Raw message records, exactly as they came back.
+ *
+ * History rows and webhook deliveries carry the same message shape, so
+ * they are handed to the same normalizer rather than parsed twice — that
+ * is the whole reason this is not narrowed here.
+ */
+export interface UazapiMessagePage {
+  messages: Record<string, unknown>[];
+}
+
 export interface UazapiDownloadedMedia {
   fileUrl: string | null;
   mimeType: string | null;
@@ -140,6 +164,11 @@ export interface UazapiInstanceClient {
   sendText(input: UazapiTextInput): Promise<UazapiSendResult>;
   sendMedia(input: UazapiMediaInput): Promise<UazapiSendResult>;
   downloadMessage(id: string): Promise<UazapiDownloadedMedia>;
+  findChats(input: { limit: number; offset: number }): Promise<UazapiChatPage>;
+  findMessages(input: {
+    chatId: string;
+    limit: number;
+  }): Promise<UazapiMessagePage>;
 }
 
 export interface UazapiAdminClientOptions {
@@ -545,6 +574,60 @@ const DOWNLOAD_MESSAGE: UazapiOperation = {
   name: 'message.download',
   idempotent: true,
 };
+const FIND_CHATS: UazapiOperation = { name: 'chat.find', idempotent: true };
+const FIND_MESSAGES: UazapiOperation = {
+  name: 'message.find',
+  idempotent: true,
+};
+
+/**
+ * Pulls a list out of an envelope whose shape the contract does not pin
+ * down. A body that names no list at all is an empty page, not a broken
+ * response: "this account has no chats" is a normal answer.
+ */
+function asRecordList(
+  body: unknown,
+  ...keys: string[]
+): Record<string, unknown>[] {
+  const raw = Array.isArray(body)
+    ? body
+    : keys
+        .map((key) => (asRecord(body) ?? {})[key])
+        .find((value): value is unknown[] => Array.isArray(value));
+
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((item) => asRecord(item))
+    .filter((item): item is Record<string, unknown> => item !== null);
+}
+
+function parseChatSummary(
+  record: Record<string, unknown>
+): UazapiChatSummary | null {
+  // The list endpoint prefixes the WhatsApp fields; a webhook-shaped row
+  // does not. Both spellings are accepted rather than guessed between.
+  const id =
+    asNonEmptyString(record.wa_chatid) ??
+    asNonEmptyString(record.chatid) ??
+    asNonEmptyString(record.id);
+  // A chat with no id cannot be asked for, so it is dropped rather than
+  // taking the rest of the page down with it.
+  if (id === null) return null;
+
+  return {
+    id,
+    name:
+      asNonEmptyString(record.wa_name) ??
+      asNonEmptyString(record.name) ??
+      asNonEmptyString(record.wa_contactName) ??
+      null,
+    isGroup:
+      asBoolean(record.wa_isGroup, false) ||
+      asBoolean(record.isGroup, false) ||
+      id.endsWith('@g.us'),
+  };
+}
 
 /**
  * Installation-scoped client. It holds `UAZAPI_ADMIN_TOKEN` and can only
@@ -730,6 +813,47 @@ export function createUazapiInstanceClient(
         fileUrl: asNonEmptyString(record.fileURL),
         mimeType: asNonEmptyString(record.mimetype),
       };
+    },
+
+    async findChats(input) {
+      const body = await transport.request({
+        operation: FIND_CHATS,
+        method: 'POST',
+        path: '/chat/find',
+        body: {
+          limit: input.limit,
+          offset: input.offset,
+          // Newest conversation first, so an import that is stopped
+          // half-way has still brought in what the seller needs today.
+          sort: '-wa_lastMsgTimestamp',
+        },
+      });
+
+      return {
+        chats: asRecordList(body, 'chats', 'data')
+          .map(parseChatSummary)
+          .filter((chat): chat is UazapiChatSummary => chat !== null),
+      };
+    },
+
+    async findMessages(input) {
+      const chatId = asNonEmptyString(input.chatId);
+      if (chatId === null) {
+        throw invalidRequest(FIND_MESSAGES.name, 'missing_chat_id');
+      }
+
+      const body = await transport.request({
+        operation: FIND_MESSAGES,
+        method: 'POST',
+        path: '/message/find',
+        body: {
+          chatid: chatId,
+          limit: input.limit,
+          sort: '-messageTimestamp',
+        },
+      });
+
+      return { messages: asRecordList(body, 'messages', 'data') };
     },
   };
 }

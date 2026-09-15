@@ -1706,7 +1706,7 @@
         "howToStep1": "Elige UAZAPI y confirma el cambio.",
         "howToStep2": "Escanea el código QR con el teléfono de la empresa.",
         "howToStep3": "Listo: los mensajes de texto y multimedia usan esta conexión.",
-        "limitsNote": "En esta versión UAZAPI atiende conversaciones individuales con texto, imagen, vídeo, audio y documentos. Plantillas, sincronización y Difusiones siguen solo en la API oficial de Meta.",
+        "limitsNote": "En esta versión UAZAPI atiende conversaciones individuales y grupos con texto, imagen, video, audio y documento. Las plantillas, la sincronización y los Envíos masivos siguen siendo exclusivos de la API oficial de Meta.",
         "status": {
           "not_configured": "Todavía sin conectar",
           "disconnected": "Desconectado",
@@ -1725,6 +1725,29 @@
           "invalid_action": "Acción inválida.",
           "network": "No se pudo contactar al servidor.",
           "unknown": "No se pudo completar la acción."
+        },
+        "history": {
+          "title": "Descargar historial",
+          "description": "Trae a la bandeja de entrada las conversaciones que ya están en el celular, incluidos los grupos y lo que usted mismo respondió.",
+          "progress": "{chats} conversaciones leídas, {messages} mensajes importados.",
+          "busyHint": "Mantenga esta pestaña abierta hasta que termine. Puede continuar después.",
+          "note": "Los mensajes importados aparecen en la conversación, pero no cuentan como no leídos ni activan automatizaciones, IA o webhooks.",
+          "failedHint": "El último intento se detuvo antes de terminar. Continuar retoma desde donde quedó.",
+          "finished": "Historial descargado: {messages} mensajes.",
+          "action": {
+            "start": "Descargar historial",
+            "resume": "Continuar desde donde quedó",
+            "again": "Descargar de nuevo"
+          },
+          "errors": {
+            "provider_not_supported": "El historial solo se puede descargar con la conexión por código QR.",
+            "not_connected": "Conecte WhatsApp antes de descargar el historial.",
+            "import_already_running": "Ya hay una descarga en curso.",
+            "provider_unavailable": "El proveedor no respondió. Inténtelo de nuevo en unos minutos.",
+            "uazapi_not_available": "La conexión por código QR no está disponible.",
+            "network": "Error de conexión. Revise su internet e inténtelo de nuevo.",
+            "unknown": "No se pudo descargar el historial en este momento."
+          }
         }
       }
     },

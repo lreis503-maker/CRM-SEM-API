@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  normalizeUazapiHistoryMessage,
   normalizeUazapiWebhook,
   uazapiInstanceIdOf,
 } from './uazapi-normalizer';
@@ -485,5 +486,52 @@ describe('uazapiInstanceIdOf', () => {
   it('returns null when the payload names no instance', () => {
     expect(uazapiInstanceIdOf({ event: 'messages', data: {} })).toBeNull();
     expect(uazapiInstanceIdOf('nope')).toBeNull();
+  });
+});
+
+describe('normalizeUazapiHistoryMessage', () => {
+  it('reads a stored message with the same rules as a live one', () => {
+    const result = normalizeUazapiHistoryMessage(textData());
+
+    expect(result.outcome).toBe('event');
+    const event = (result as { events: NormalizedInboundMessage[] }).events[0];
+    expect(event).toMatchObject({
+      provider: 'uazapi',
+      externalMessageId: '3EB0538DA65A59F6D8A251',
+      fromMe: false,
+    });
+    expect(event.content).toMatchObject({ type: 'text', text: 'oi' });
+  });
+
+  it('keeps our own side of the thread, which is most of the history', () => {
+    const result = normalizeUazapiHistoryMessage(textData({ fromMe: true }));
+
+    const event = (result as { events: NormalizedInboundMessage[] }).events[0];
+    expect(event.fromMe).toBe(true);
+  });
+
+  it('imports a message this CRM sent, since ids make it idempotent', () => {
+    // wasSentByApi is filtered on the live webhook to stop an automation
+    // answering itself. In a backfill there is nothing to answer: either
+    // the row already exists and the insert is a no-op, or it was lost and
+    // belongs in the thread.
+    const result = normalizeUazapiHistoryMessage(
+      textData({ wasSentByApi: true, fromMe: true })
+    );
+
+    expect(result.outcome).toBe('event');
+  });
+
+  it('skips a newsletter post the same way the webhook does', () => {
+    expect(
+      normalizeUazapiHistoryMessage(textData({ chatid: '1203@newsletter' }))
+    ).toEqual({ outcome: 'ignored', reason: 'not_a_chat' });
+  });
+
+  it('refuses a row that is not an object', () => {
+    expect(normalizeUazapiHistoryMessage(null)).toMatchObject({
+      outcome: 'quarantine',
+      reasonCode: 'body_not_an_object',
+    });
   });
 });

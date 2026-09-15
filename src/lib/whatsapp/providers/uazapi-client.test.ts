@@ -382,6 +382,100 @@ describe('UAZAPI message sending', () => {
   });
 });
 
+describe('UAZAPI history reads', () => {
+  it('asks for one page of chats, newest activity first', async () => {
+    const fetchImpl = fetchReturning({
+      chats: [
+        { wa_chatid: '5511999999999@s.whatsapp.net', wa_name: 'Ada' },
+        { wa_chatid: '12345-67890@g.us', wa_isGroup: true, wa_name: 'Vendas' },
+      ],
+    });
+
+    const page = await instanceClient(fetchImpl).findChats({
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(`${BASE_URL}/chat/find`);
+    expect(lastBody(fetchImpl)).toMatchObject({
+      limit: 50,
+      offset: 0,
+      sort: '-wa_lastMsgTimestamp',
+    });
+    expect(page.chats).toEqual([
+      { id: '5511999999999@s.whatsapp.net', name: 'Ada', isGroup: false },
+      { id: '12345-67890@g.us', name: 'Vendas', isGroup: true },
+    ]);
+  });
+
+  it('reads a bare array of chats too, since the envelope varies', async () => {
+    const fetchImpl = fetchReturning([{ id: '5511999999999@s.whatsapp.net' }]);
+
+    const page = await instanceClient(fetchImpl).findChats({
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(page.chats).toEqual([
+      { id: '5511999999999@s.whatsapp.net', name: null, isGroup: false },
+    ]);
+  });
+
+  it('skips a chat with no id rather than failing the whole page', async () => {
+    const fetchImpl = fetchReturning({
+      chats: [{ wa_name: 'nameless' }, { id: 'ok@s.whatsapp.net' }],
+    });
+
+    const page = await instanceClient(fetchImpl).findChats({
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(page.chats).toHaveLength(1);
+    expect(page.chats[0]?.id).toBe('ok@s.whatsapp.net');
+  });
+
+  it('asks for the newest messages of one chat', async () => {
+    const fetchImpl = fetchReturning({
+      messages: [{ messageid: 'm-1', text: 'oi' }],
+    });
+
+    const page = await instanceClient(fetchImpl).findMessages({
+      chatId: '5511999999999@s.whatsapp.net',
+      limit: 200,
+    });
+
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(`${BASE_URL}/message/find`);
+    expect(lastBody(fetchImpl)).toMatchObject({
+      chatid: '5511999999999@s.whatsapp.net',
+      limit: 200,
+      sort: '-messageTimestamp',
+    });
+    // Returned untouched: the normalizer, not the client, decides what a
+    // message means, and it already reads this exact shape from webhooks.
+    expect(page.messages).toEqual([{ messageid: 'm-1', text: 'oi' }]);
+  });
+
+  it('refuses to read messages without naming a chat', async () => {
+    const fetchImpl = fetchReturning({ messages: [] });
+
+    await expect(
+      instanceClient(fetchImpl).findMessages({ chatId: '  ', limit: 10 })
+    ).rejects.toSatisfy(isUazapiClientError);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('treats a missing list as an empty page, not as a broken response', async () => {
+    const fetchImpl = fetchReturning({});
+
+    const chats = await instanceClient(fetchImpl).findChats({
+      limit: 10,
+      offset: 0,
+    });
+    expect(chats.chats).toEqual([]);
+  });
+});
+
 describe('UAZAPI transport safety', () => {
   it('aborts a slow request with a 15 second budget', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ id: 'i-1' }));

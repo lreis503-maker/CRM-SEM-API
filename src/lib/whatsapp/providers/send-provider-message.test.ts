@@ -73,6 +73,8 @@ function uazapiClient() {
     disconnect: vi.fn(),
     deleteInstance: vi.fn(),
     downloadMessage: vi.fn(),
+    findChats: vi.fn(),
+    findMessages: vi.fn(),
   };
 }
 

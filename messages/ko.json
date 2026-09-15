@@ -1706,7 +1706,7 @@
         "howToStep1": "UAZAPI를 선택하고 전환을 확인합니다.",
         "howToStep2": "회사 휴대폰으로 QR 코드를 스캔합니다.",
         "howToStep3": "완료되면 텍스트와 미디어 메시지가 이 연결을 사용합니다.",
-        "limitsNote": "이 버전의 UAZAPI는 텍스트, 이미지, 동영상, 오디오, 문서를 사용하는 일대일 대화를 지원합니다. 템플릿, 동기화, 대량 발송은 공식 Meta API에서만 제공됩니다.",
+        "limitsNote": "이 버전에서 UAZAPI는 텍스트, 이미지, 동영상, 오디오, 문서를 사용하는 1:1 대화와 그룹을 지원합니다. 템플릿, 동기화, 일괄 발송은 공식 Meta API에서만 제공됩니다.",
         "status": {
           "not_configured": "아직 연결되지 않음",
           "disconnected": "연결 끊김",
@@ -1725,6 +1725,29 @@
           "invalid_action": "잘못된 동작입니다.",
           "network": "서버에 연결하지 못했습니다.",
           "unknown": "동작을 완료하지 못했습니다."
+        },
+        "history": {
+          "title": "대화 기록 가져오기",
+          "description": "휴대폰에 이미 있는 대화를 받은편지함으로 가져옵니다. 그룹과 직접 보낸 답장도 포함됩니다.",
+          "progress": "대화 {chats}개 확인, 메시지 {messages}개 가져옴.",
+          "busyHint": "완료될 때까지 이 탭을 열어 두세요. 나중에 이어서 할 수 있습니다.",
+          "note": "가져온 메시지는 대화에 표시되지만 읽지 않음으로 계산되지 않으며 자동화, AI 답장, 웹훅을 실행하지 않습니다.",
+          "failedHint": "마지막 시도가 도중에 중단되었습니다. 계속하면 멈춘 지점부터 이어집니다.",
+          "finished": "대화 기록을 가져왔습니다: 메시지 {messages}개.",
+          "action": {
+            "start": "대화 기록 가져오기",
+            "resume": "멈춘 지점부터 계속",
+            "again": "다시 가져오기"
+          },
+          "errors": {
+            "provider_not_supported": "QR 코드 연결에서만 대화 기록을 가져올 수 있습니다.",
+            "not_connected": "대화 기록을 가져오기 전에 WhatsApp을 연결하세요.",
+            "import_already_running": "이미 가져오는 중입니다.",
+            "provider_unavailable": "제공자가 응답하지 않았습니다. 몇 분 후 다시 시도하세요.",
+            "uazapi_not_available": "QR 코드 연결을 사용할 수 없습니다.",
+            "network": "연결에 실패했습니다. 인터넷을 확인하고 다시 시도하세요.",
+            "unknown": "지금은 대화 기록을 가져올 수 없습니다."
+          }
         }
       }
     },

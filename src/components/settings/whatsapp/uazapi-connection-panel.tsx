@@ -32,6 +32,7 @@ import {
 import { useWhatsAppCapabilities } from '@/hooks/use-whatsapp-capabilities';
 import type { WhatsAppProvider } from '@/lib/whatsapp/providers/types';
 
+import { HistoryImportCard } from './history-import-card';
 import {
   deriveUazapiViewState,
   type UazapiPrimaryAction,
@@ -412,6 +413,13 @@ export function UazapiConnectionPanel({
       </div>
 
       <div className="space-y-6">
+        {/* Only meaningful once a number is paired: before that there is
+            no instance whose history could be read. */}
+        <HistoryImportCard
+          connected={connection?.status === 'connected'}
+          canEdit={canEdit}
+        />
+
         <Card className="border-border bg-card">
           <CardHeader>
             <CardTitle className="text-foreground text-base">

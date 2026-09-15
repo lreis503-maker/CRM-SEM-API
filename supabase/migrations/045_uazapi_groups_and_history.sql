@@ -78,9 +78,17 @@ CREATE TABLE IF NOT EXISTS whatsapp_history_imports (
   messages_imported INTEGER NOT NULL DEFAULT 0,
   -- Stable reason code, never an upstream message.
   error_code TEXT,
+  -- How far the walk has got. An import runs in bounded batches so it
+  -- cannot outlive a request, and this is the whole cursor it needs to
+  -- pick up again after a stop, a timeout or a closed browser tab.
+  chat_offset INTEGER NOT NULL DEFAULT 0,
   started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   finished_at TIMESTAMPTZ
 );
+
+-- Idempotent on an installation that already created the table above.
+ALTER TABLE whatsapp_history_imports
+  ADD COLUMN IF NOT EXISTS chat_offset INTEGER NOT NULL DEFAULT 0;
 
 -- At most one import running per account, enforced in the database
 -- rather than by a check-then-insert that two clicks could both pass.

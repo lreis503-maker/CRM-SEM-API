@@ -1706,7 +1706,7 @@
         "howToStep1": "Pick UAZAPI and confirm the switch.",
         "howToStep2": "Scan the QR code with the company phone.",
         "howToStep3": "Done: text and media messages now use this connection.",
-        "limitsNote": "In this version UAZAPI handles one-to-one conversations with text, image, video, audio and documents. Templates, synchronization and Broadcasts stay on the official Meta API.",
+        "limitsNote": "In this version UAZAPI handles one-to-one chats and groups with text, image, video, audio and document. Templates, syncing and Broadcasts remain exclusive to the official Meta API.",
         "status": {
           "not_configured": "Not connected yet",
           "disconnected": "Disconnected",
@@ -1725,6 +1725,29 @@
           "invalid_action": "Invalid action.",
           "network": "Could not reach the server.",
           "unknown": "Could not complete the action."
+        },
+        "history": {
+          "title": "Download history",
+          "description": "Brings the conversations already on the phone into the inbox, including groups and what you answered yourself.",
+          "progress": "{chats} chats read, {messages} messages imported.",
+          "busyHint": "Keep this tab open until it finishes. You can continue later.",
+          "note": "Imported messages appear in the thread, but never count as unread or trigger automations, AI replies or webhooks.",
+          "failedHint": "The last attempt stopped early. Continuing picks up where it left off.",
+          "finished": "History downloaded: {messages} messages.",
+          "action": {
+            "start": "Download history",
+            "resume": "Continue where it stopped",
+            "again": "Download again"
+          },
+          "errors": {
+            "provider_not_supported": "History can only be downloaded on the QR code connection.",
+            "not_connected": "Connect WhatsApp before downloading the history.",
+            "import_already_running": "A download is already running.",
+            "provider_unavailable": "The provider did not respond. Try again in a few minutes.",
+            "uazapi_not_available": "The QR code connection is not available.",
+            "network": "Connection failed. Check your internet and try again.",
+            "unknown": "The history could not be downloaded right now."
+          }
         }
       }
     },

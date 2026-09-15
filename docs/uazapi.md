@@ -169,7 +169,44 @@ remove a linha local. Uma instância que já não existe conta como removida.
 
 ---
 
-## 5. Mídia recebida
+## 5. Baixar o histórico
+
+Quem acabou de conectar começa com a caixa de entrada vazia, mesmo tendo
+anos de conversa no celular. Em **Configurações → WhatsApp**, o cartão
+**Baixar histórico** traz o que já existe.
+
+**Como funciona.** Uma conta pode ter milhares de conversas, muito mais do
+que cabe em uma requisição. Então o download acontece em lotes: cada
+chamada percorre uma página de conversas, guarda até onde foi e diz se
+ainda falta. A página repete até terminar.
+
+Por isso:
+
+- **fechar a aba não perde nada.** O cursor fica no servidor; o próximo
+  clique continua da mesma conversa;
+- o botão muda para **Continuar de onde parou** quando um download foi
+  interrompido;
+- rodar de novo depois de pronto só traz o que aconteceu desde então —
+  cada mensagem é gravada pelo id do provedor, então nada entra duas
+  vezes.
+
+**Limites.** São trazidas as conversas com atividade mais recente
+primeiro, até 600 delas, com as últimas 200 mensagens de cada uma. É o que
+um vendedor abre para ler; ir mais fundo multiplica o custo por páginas
+que ninguém rola.
+
+**O que o histórico não faz.** Mensagem importada é registro do que já
+aconteceu: aparece na conversa, mas **não** conta como não lida, **não**
+avança fluxo, **não** dispara automação, **não** aciona a IA e **não**
+chega a webhook de saída. Sem isso, um download avisaria pessoas reais
+sobre conversas encerradas há meses.
+
+Uma conversa que o provedor não conseguir ler é pulada e contada — o
+download não para por causa dela.
+
+---
+
+## 6. Mídia recebida
 
 A UAZAPI mantém os arquivos hospedados por **dois dias**.
 
@@ -184,7 +221,7 @@ anexo. É melhor que uma mensagem perdida.
 
 ---
 
-## 6. Quarentena de webhooks
+## 7. Quarentena de webhooks
 
 A documentação da UAZAPI deixa o corpo do webhook em aberto. Quando chega
 algo que o CRM não reconhece, ele **não adivinha**: guarda uma amostra
@@ -210,7 +247,7 @@ confirmados, sem gerar linha de quarentena.
 
 ---
 
-## 7. Diagnóstico rápido
+## 8. Diagnóstico rápido
 
 | Sintoma                           | Causa provável                       | O que fazer                                       |
 | --------------------------------- | ------------------------------------ | ------------------------------------------------- |
@@ -231,7 +268,7 @@ Mais causas e códigos em
 
 ---
 
-## 8. Smoke test com número descartável
+## 9. Smoke test com número descartável
 
 Esta implementação **não foi validada contra uma instância UAZAPI real** —
 não havia ambiente de teste nem número descartável disponíveis. O

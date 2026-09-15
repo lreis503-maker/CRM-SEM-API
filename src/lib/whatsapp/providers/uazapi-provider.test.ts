@@ -25,6 +25,8 @@ function provider() {
     disconnect: vi.fn(),
     deleteInstance: vi.fn(),
     downloadMessage: vi.fn(),
+    findChats: vi.fn(),
+    findMessages: vi.fn(),
   };
 
   return { transport: createUazapiProvider(client), sendText, sendMedia };

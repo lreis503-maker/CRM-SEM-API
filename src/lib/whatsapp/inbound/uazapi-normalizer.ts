@@ -295,12 +295,17 @@ function normalizeContent(
 
 function normalizeMessage(
   data: Record<string, unknown>,
-  eventName: string | null
+  eventName: string | null,
+  options: { skipOwnApiSends: boolean } = { skipOwnApiSends: true }
 ): UazapiNormalizeResult {
   // Configured at the provider too, and checked again here: a message
-  // this CRM sent is already stored, and letting an automation see its
-  // own output is how a bot answers itself forever.
-  if (data.wasSentByApi === true) return ignored('sent_by_api');
+  // this CRM sent live is already stored, and letting an automation see
+  // its own output is how a bot answers itself forever. A backfill has
+  // nothing to answer, so it keeps these rows — see the history entry
+  // point below.
+  if (options.skipOwnApiSends && data.wasSentByApi === true) {
+    return ignored('sent_by_api');
+  }
 
   const chatId = asText(data.chatid);
   // A newsletter or channel post has nobody to reply to.
@@ -437,6 +442,30 @@ function normalizeConnection(
   };
 
   return { outcome: 'event', events: [event] };
+}
+
+/**
+ * One stored message, as `POST /message/find` returns it.
+ *
+ * History rows and webhook deliveries carry the same message shape, so
+ * they go through the same rules: the same ignore reasons, the same
+ * quarantine codes, the same content parsing. Reading them twice, in two
+ * places, is how the two drift apart.
+ *
+ * The one difference is `wasSentByApi`. Live, it is filtered so an
+ * automation cannot answer its own output; in a backfill there is
+ * nothing to answer, and dropping those rows would leave the CRM's own
+ * half of every conversation missing. Storing them is safe because the
+ * insert is keyed by provider message id: a row already saved at send
+ * time is simply not inserted again.
+ */
+export function normalizeUazapiHistoryMessage(
+  record: unknown
+): UazapiNormalizeResult {
+  const data = asRecord(record);
+  if (data === null) return quarantine('body_not_an_object', null);
+
+  return normalizeMessage(data, 'history', { skipOwnApiSends: false });
 }
 
 export function normalizeUazapiWebhook(

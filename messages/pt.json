@@ -1706,7 +1706,7 @@
         "howToStep1": "Escolha UAZAPI e confirme a troca.",
         "howToStep2": "Leia o QR Code com o celular da empresa.",
         "howToStep3": "Pronto: mensagens de texto e mídia passam a usar esta conexão.",
-        "limitsNote": "Nesta versão a UAZAPI atende conversas individuais com texto, imagem, vídeo, áudio e documento. Modelos, sincronização e Disparos continuam somente na API oficial da Meta.",
+        "limitsNote": "Nesta versão a UAZAPI atende conversas individuais e grupos com texto, imagem, vídeo, áudio e documento. Modelos, sincronização e Disparos continuam somente na API oficial da Meta.",
         "status": {
           "not_configured": "Ainda não conectado",
           "disconnected": "Desconectado",
@@ -1725,6 +1725,29 @@
           "invalid_action": "Ação inválida.",
           "network": "Não foi possível falar com o servidor.",
           "unknown": "Não foi possível concluir a ação."
+        },
+        "history": {
+          "title": "Baixar histórico",
+          "description": "Traz as conversas que já estão no celular para a caixa de entrada, incluindo grupos e o que você mesmo respondeu.",
+          "progress": "{chats} conversas lidas, {messages} mensagens importadas.",
+          "busyHint": "Deixe esta aba aberta até terminar. Você pode continuar depois.",
+          "note": "As mensagens importadas aparecem na conversa, mas não contam como não lidas nem disparam automações, IA ou webhooks.",
+          "failedHint": "A última tentativa parou antes do fim. Continuar retoma de onde parou.",
+          "finished": "Histórico baixado: {messages} mensagens.",
+          "action": {
+            "start": "Baixar histórico",
+            "resume": "Continuar de onde parou",
+            "again": "Baixar novamente"
+          },
+          "errors": {
+            "provider_not_supported": "O histórico só pode ser baixado com a conexão por QR Code.",
+            "not_connected": "Conecte o WhatsApp antes de baixar o histórico.",
+            "import_already_running": "Já existe um download em andamento.",
+            "provider_unavailable": "O provedor não respondeu. Tente de novo em alguns minutos.",
+            "uazapi_not_available": "A conexão por QR Code não está disponível.",
+            "network": "Falha de conexão. Verifique a internet e tente de novo.",
+            "unknown": "Não foi possível baixar o histórico agora."
+          }
         }
       }
     },
