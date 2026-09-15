@@ -435,6 +435,46 @@ describe('UAZAPI history reads', () => {
     expect(page.chats[0]?.id).toBe('ok@s.whatsapp.net');
   });
 
+  it('hands back the rows it could not read, instead of dropping them', async () => {
+    // A chat with no id in any spelling we know. Silently skipping it is
+    // how an import reports "no conversations" for an account that has
+    // thousands — the caller needs to be able to tell the two apart.
+    const fetchImpl = fetchReturning({
+      chats: [{ some_unknown_shape: 'x' }, { id: 'ok@s.whatsapp.net' }],
+    });
+
+    const page = await instanceClient(fetchImpl).findChats({
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(page.chats).toHaveLength(1);
+    expect(page.unreadable).toEqual([{ some_unknown_shape: 'x' }]);
+  });
+
+  it('reports nothing unreadable when every row parsed', async () => {
+    const fetchImpl = fetchReturning({ chats: [{ id: 'ok@s.whatsapp.net' }] });
+
+    const page = await instanceClient(fetchImpl).findChats({
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(page.unreadable).toEqual([]);
+  });
+
+  it('tells an empty account apart from an unreadable answer', async () => {
+    const fetchImpl = fetchReturning({ chats: [] });
+
+    const page = await instanceClient(fetchImpl).findChats({
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(page.chats).toEqual([]);
+    expect(page.unreadable).toEqual([]);
+  });
+
   it('asks for the newest messages of one chat', async () => {
     const fetchImpl = fetchReturning({
       messages: [{ messageid: 'm-1', text: 'oi' }],

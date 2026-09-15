@@ -1755,7 +1755,8 @@
             "uazapi_not_available": "A conexão por QR Code não está disponível.",
             "network": "Falha de conexão. Verifique a internet e tente de novo.",
             "unknown": "Não foi possível baixar o histórico agora."
-          }
+          },
+          "unreadableHint": "Atenção: {count} registros vieram num formato que este CRM não entende e ficaram de fora. O download pode estar trazendo menos do que existe. Avise o responsável pela instalação."
         },
         "resyncButton": "Sincronizar configurações",
         "resyncHint": "Reaplica na UAZAPI quais eventos o CRM recebe e para onde eles são enviados. Não desconecta o WhatsApp nem pede o QR Code.",

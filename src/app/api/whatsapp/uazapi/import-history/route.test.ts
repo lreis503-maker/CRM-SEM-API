@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   requireRole: vi.fn(),
+  quarantineWebhookFailure: vi.fn(),
   importUazapiHistoryBatch: vi.fn(),
   processInboundMessage: vi.fn(),
   createUazapiInstanceClient: vi.fn(() => ({
@@ -67,6 +68,10 @@ vi.mock('@/lib/whatsapp/history/import-uazapi-history', async (original) => ({
 vi.mock('@/lib/whatsapp/inbound/process-inbound-message', () => ({
   processInboundMessage: mocks.processInboundMessage,
 }));
+vi.mock('@/lib/whatsapp/inbound/webhook-quarantine', () => ({
+  quarantineWebhookFailure: mocks.quarantineWebhookFailure,
+  purgeExpiredWebhookQuarantine: vi.fn(),
+}));
 vi.mock('@/lib/whatsapp/providers/uazapi-client', async (original) => ({
   ...(await original<Record<string, unknown>>()),
   createUazapiInstanceClient: mocks.createUazapiInstanceClient,
@@ -99,11 +104,13 @@ beforeEach(() => {
   mocks.inserted = [];
   mocks.updated = [];
   mocks.insertFails = false;
+  mocks.quarantineWebhookFailure.mockResolvedValue(undefined);
   mocks.importUazapiHistoryBatch.mockResolvedValue({
     chatsSeen: 3,
     messagesImported: 12,
     skippedMessages: 0,
     failedChats: 0,
+    unreadableChats: 0,
     nextChatOffset: 3,
     nextMessageOffset: 0,
     done: false,
@@ -347,5 +354,57 @@ describe('GET /api/whatsapp/uazapi/import-history', () => {
     await GET();
 
     expect(mocks.requireRole).toHaveBeenCalledWith('viewer');
+  });
+});
+
+describe('POST /api/whatsapp/uazapi/import-history — diagnosing a silent import', () => {
+  it('files a sample of a row it could not read', async () => {
+    mocks.importUazapiHistoryBatch.mockImplementation(
+      async (input: {
+        onUnreadable: (i: { kind: string; sample: unknown }) => Promise<void>;
+      }) => {
+        await input.onUnreadable({ kind: 'chat', sample: { odd: 'shape' } });
+        return {
+          chatsSeen: 0,
+          messagesImported: 0,
+          skippedMessages: 0,
+          failedChats: 0,
+          unreadableChats: 1,
+          nextChatOffset: 0,
+          nextMessageOffset: 0,
+          done: false,
+        };
+      }
+    );
+
+    await POST();
+
+    expect(mocks.quarantineWebhookFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: 'acc-1',
+        provider: 'uazapi',
+        reasonCode: 'history_unreadable_chat',
+        payload: { odd: 'shape' },
+      })
+    );
+  });
+
+  it('reports the unreadable count instead of swallowing it', async () => {
+    mocks.importUazapiHistoryBatch.mockResolvedValue({
+      chatsSeen: 0,
+      messagesImported: 0,
+      skippedMessages: 4,
+      failedChats: 0,
+      unreadableChats: 7,
+      nextChatOffset: 0,
+      nextMessageOffset: 0,
+      done: false,
+    });
+
+    const body = await (await POST()).json();
+
+    // "0 conversas importadas" with a 7 here means the shape is wrong,
+    // not that the account is empty.
+    expect(body).toMatchObject({ unreadableChats: 7, skippedMessages: 4 });
   });
 });

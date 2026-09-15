@@ -131,6 +131,16 @@ export interface UazapiChatSummary {
 
 export interface UazapiChatPage {
   chats: UazapiChatSummary[];
+  /**
+   * Rows the provider returned that carried no id in any spelling this
+   * client knows, handed back rather than dropped.
+   *
+   * Dropping them silently makes an account whose response shape we
+   * misread look exactly like an account with no conversations — which
+   * is the failure this contract exists to prevent. The caller records a
+   * redacted sample so the real shape can be read off the database.
+   */
+  unreadable: Record<string, unknown>[];
 }
 
 /**
@@ -834,11 +844,17 @@ export function createUazapiInstanceClient(
         },
       });
 
-      return {
-        chats: asRecordList(body, 'chats', 'data')
-          .map(parseChatSummary)
-          .filter((chat): chat is UazapiChatSummary => chat !== null),
-      };
+      const rows = asRecordList(body, 'chats', 'data');
+      const chats: UazapiChatSummary[] = [];
+      const unreadable: Record<string, unknown>[] = [];
+
+      for (const row of rows) {
+        const chat = parseChatSummary(row);
+        if (chat === null) unreadable.push(row);
+        else chats.push(chat);
+      }
+
+      return { chats, unreadable };
     },
 
     async findMessages(input) {

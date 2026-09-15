@@ -40,11 +40,14 @@ function reader(options: {
   chats: UazapiChatSummary[];
   messages?: Record<string, Record<string, unknown>[]>;
   failChats?: string[];
+  /** Rows the client returned but could not parse. */
+  unreadable?: Record<string, unknown>[];
 }) {
   const findChats = vi.fn(
     async ({ limit, offset }: { limit: number; offset: number }) =>
       ({
         chats: options.chats.slice(offset, offset + limit),
+        unreadable: offset === 0 ? (options.unreadable ?? []) : [],
       }) satisfies UazapiChatPage
   );
 
@@ -454,5 +457,122 @@ describe('importUazapiHistoryBatch — failures', () => {
         },
       })
     ).rejects.toThrow('database gone');
+  });
+});
+
+describe('importUazapiHistoryBatch — an answer we cannot read', () => {
+  it('does not call an unreadable chat list an empty account', async () => {
+    // The whole point. Before this, a response whose shape we misread
+    // looked identical to "this account has no conversations": the walk
+    // reported done, the run was marked completed, and the seller was
+    // told the import had finished.
+    const client = reader({ chats: [], unreadable: [{ odd: 'shape' }] });
+
+    const result = await importUazapiHistoryBatch({
+      client,
+      ...START,
+      store: collector().store,
+    });
+
+    expect(result.done).toBe(false);
+    expect(result.unreadableChats).toBe(1);
+  });
+
+  it('hands a sample out so the real shape can be inspected later', async () => {
+    const seen: unknown[] = [];
+    const client = reader({ chats: [], unreadable: [{ odd: 'shape' }] });
+
+    await importUazapiHistoryBatch({
+      client,
+      ...START,
+      store: collector().store,
+      onUnreadable: async (input) => {
+        seen.push(input);
+      },
+    });
+
+    expect(seen).toEqual([{ kind: 'chat', sample: { odd: 'shape' } }]);
+  });
+
+  it('counts unreadable rows even when others parsed fine', async () => {
+    const client = reader({
+      chats: [chat('c@s.whatsapp.net')],
+      unreadable: [{ odd: 'shape' }, { odd: 'shape 2' }],
+    });
+
+    const result = await importUazapiHistoryBatch({
+      client,
+      ...START,
+      store: collector().store,
+    });
+
+    expect(result.unreadableChats).toBe(2);
+    // Still not done — it walked what it could, and there is more to say.
+    expect(result.done).toBe(false);
+  });
+
+  it('reports a message row it could not read', async () => {
+    const seen: unknown[] = [];
+    const client = reader({
+      chats: [chat('c@s.whatsapp.net')],
+      messages: { 'c@s.whatsapp.net': [{ nothing: 'usable' }] },
+    });
+
+    const result = await importUazapiHistoryBatch({
+      client,
+      ...START,
+      store: collector().store,
+      onUnreadable: async (input) => {
+        seen.push(input);
+      },
+    });
+
+    expect(result.skippedMessages).toBe(1);
+    expect(seen).toContainEqual({
+      kind: 'message',
+      sample: { nothing: 'usable' },
+    });
+  });
+
+  it('does not drown the caller in samples of the same failure', async () => {
+    const seen: unknown[] = [];
+    const client = reader({
+      chats: [chat('c@s.whatsapp.net')],
+      messages: {
+        'c@s.whatsapp.net': Array.from({ length: 50 }, () => ({
+          nothing: 'usable',
+        })),
+      },
+    });
+
+    await importUazapiHistoryBatch({
+      client,
+      ...START,
+      store: collector().store,
+      onUnreadable: async (input) => {
+        seen.push(input);
+      },
+    });
+
+    // A few samples say everything 50 identical ones would; the rest are
+    // still counted.
+    expect(seen.length).toBeLessThanOrEqual(3);
+    expect(seen.length).toBeGreaterThan(0);
+  });
+
+  it('survives a reporter that throws', async () => {
+    const client = reader({ chats: [], unreadable: [{ odd: 'shape' }] });
+
+    // Diagnostics must never be what breaks an import.
+    await expect(
+      importUazapiHistoryBatch({
+        client,
+        ...START,
+        store: collector().store,
+        onUnreadable: async () => {
+          throw new Error('quarantine write failed');
+        },
+      })
+    ).resolves.toMatchObject({ unreadableChats: 1 });
   });
 });

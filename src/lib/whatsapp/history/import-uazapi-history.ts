@@ -48,6 +48,13 @@ export const HISTORY_MESSAGES_PER_PAGE = 200;
  */
 export const HISTORY_MESSAGE_BUDGET = 500;
 
+/**
+ * How many samples of unreadable rows one batch reports. Three is enough
+ * to see the shape and to notice if two different shapes are arriving;
+ * more would just fill the diagnostics table with copies.
+ */
+const MAX_UNREADABLE_SAMPLES = 3;
+
 /** The slice of the instance client a backfill needs. Reads only. */
 export interface UazapiHistoryReader {
   findChats(input: { limit: number; offset: number }): Promise<UazapiChatPage>;
@@ -72,6 +79,19 @@ export interface UazapiHistoryBatchInput {
    * resume from the same cursor, and going on would quietly lose rows.
    */
   store(event: NormalizedInboundMessage): Promise<void>;
+  /**
+   * Called with a redacted-later sample of a row the client could not
+   * read, so the shape actually being returned can be inspected instead
+   * of guessed at. Called a handful of times per batch at most — a few
+   * samples say everything a thousand identical ones would.
+   *
+   * Never allowed to fail the import: diagnostics that break the thing
+   * they diagnose are worse than none.
+   */
+  onUnreadable?(input: {
+    kind: 'chat' | 'message';
+    sample: unknown;
+  }): Promise<void>;
   chatsPerBatch?: number;
   messagesPerPage?: number;
   messageBudget?: number;
@@ -85,6 +105,14 @@ export interface UazapiHistoryBatchResult {
   skippedMessages: number;
   /** Chats whose messages could not be read at all. */
   failedChats: number;
+  /**
+   * Rows the chat listing returned that carried no usable id.
+   *
+   * Any number above zero means the provider is answering in a shape
+   * this CRM does not understand, and the import is walking less of the
+   * account than it thinks.
+   */
+  unreadableChats: number;
   /** Where the next batch should start. */
   nextChatOffset: number;
   nextMessageOffset: number;
@@ -113,7 +141,7 @@ export async function importUazapiHistoryBatch(
   const messagesPerPage = input.messagesPerPage ?? HISTORY_MESSAGES_PER_PAGE;
   const messageBudget = input.messageBudget ?? HISTORY_MESSAGE_BUDGET;
 
-  const { chats } = await input.client.findChats({
+  const { chats, unreadable } = await input.client.findChats({
     limit: chatsPerBatch,
     offset: input.chatOffset,
   });
@@ -122,6 +150,23 @@ export async function importUazapiHistoryBatch(
   let messagesImported = 0;
   let skippedMessages = 0;
   let failedChats = 0;
+  let samplesReported = 0;
+
+  async function reportUnreadable(kind: 'chat' | 'message', sample: unknown) {
+    if (!input.onUnreadable || samplesReported >= MAX_UNREADABLE_SAMPLES) {
+      return;
+    }
+    samplesReported += 1;
+    try {
+      await input.onUnreadable({ kind, sample });
+    } catch {
+      // Recording a diagnostic must never be what stops an import.
+    }
+  }
+
+  for (const row of unreadable) {
+    await reportUnreadable('chat', row);
+  }
 
   // Where we are right now, moved forward as chats are finished so that
   // an early return always hands back a truthful cursor.
@@ -163,8 +208,13 @@ export async function importUazapiHistoryBatch(
         if (result.outcome !== 'event') {
           // An ignored row (a newsletter post) and an unreadable one are
           // both simply absent from the thread; neither is worth failing
-          // an import over.
-          if (result.outcome === 'quarantine') skippedMessages += 1;
+          // an import over. An unreadable one is worth a sample, though —
+          // a thread that imports nothing looks the same as a thread with
+          // nothing in it.
+          if (result.outcome === 'quarantine') {
+            skippedMessages += 1;
+            await reportUnreadable('message', record);
+          }
           continue;
         }
 
@@ -192,6 +242,7 @@ export async function importUazapiHistoryBatch(
         messagesImported,
         skippedMessages,
         failedChats,
+        unreadableChats: unreadable.length,
         nextChatOffset: chatOffset,
         // Mid-thread when the chat is unfinished; the start of the next
         // chat when the budget ran out exactly as one ended.
@@ -206,11 +257,14 @@ export async function importUazapiHistoryBatch(
     messagesImported,
     skippedMessages,
     failedChats,
+    unreadableChats: unreadable.length,
     nextChatOffset: chatOffset,
     nextMessageOffset: 0,
-    // The only way an import ends: the provider listed no more chats.
-    // There is deliberately no ceiling on how far the walk goes — one
-    // would silently leave an account half-imported with no way to tell.
-    done: chats.length === 0,
+    // The only way an import ends: the provider listed no chats at all —
+    // neither usable ones nor ones we failed to read. There is
+    // deliberately no ceiling on how far the walk goes, and a page we
+    // could not parse is never mistaken for the end, because those two
+    // silences are exactly what made a truncated import look finished.
+    done: chats.length === 0 && unreadable.length === 0,
   };
 }

@@ -35,6 +35,9 @@ interface BatchResponse {
   chatsSeen?: number;
   messagesImported?: number;
   failedChats?: number;
+  /** Rows the provider returned that this CRM could not read. */
+  unreadableChats?: number;
+  skippedMessages?: number;
   error?: string;
 }
 
@@ -56,6 +59,16 @@ export function HistoryImportCard({
 
   const [run, setRun] = useState<HistoryImportProgress | null>(null);
   const [working, setWorking] = useState(false);
+  /**
+   * Rows the provider sent that this CRM could not read, accumulated over
+   * the batches of one click.
+   *
+   * Without this on screen, an import that understands none of the answer
+   * finishes reporting "0 conversations" — indistinguishable from an
+   * account that genuinely has none, which is how a broken import passes
+   * for a working one.
+   */
+  const [unreadable, setUnreadable] = useState(0);
   // Set when the component unmounts, so an in-flight loop stops instead
   // of writing into a card that is gone.
   const stoppedRef = useRef(false);
@@ -86,6 +99,7 @@ export function HistoryImportCard({
 
   async function importAll() {
     setWorking(true);
+    setUnreadable(0);
     try {
       for (let batch = 0; batch < MAX_BATCHES_PER_CLICK; batch += 1) {
         if (stoppedRef.current) return;
@@ -111,6 +125,11 @@ export function HistoryImportCard({
           startedAt: previous?.startedAt ?? new Date().toISOString(),
           finishedAt: body.done === true ? new Date().toISOString() : null,
         }));
+
+        setUnreadable(
+          (previous) =>
+            previous + (body.unreadableChats ?? 0) + (body.skippedMessages ?? 0)
+        );
 
         if (body.done === true) {
           toast.success(
@@ -166,6 +185,12 @@ export function HistoryImportCard({
 
         {view.failed && (
           <p className="text-muted-foreground text-sm">{t('failedHint')}</p>
+        )}
+
+        {unreadable > 0 && (
+          <p className="text-sm text-amber-500">
+            {t('unreadableHint', { count: unreadable })}
+          </p>
         )}
 
         {view.action !== 'none' && (

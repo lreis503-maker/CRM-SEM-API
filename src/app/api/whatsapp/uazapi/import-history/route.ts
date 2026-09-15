@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/whatsapp/admin-client';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { importUazapiHistoryBatch } from '@/lib/whatsapp/history/import-uazapi-history';
 import { createUazapiMediaResolver } from '@/lib/whatsapp/inbound/uazapi-media';
+import { quarantineWebhookFailure } from '@/lib/whatsapp/inbound/webhook-quarantine';
 import { processInboundMessage } from '@/lib/whatsapp/inbound/process-inbound-message';
 import type { NormalizedInboundMessage } from '@/lib/whatsapp/inbound/types';
 import { resolveUazapiInstallation } from '@/lib/whatsapp/providers/account-capabilities';
@@ -195,6 +196,25 @@ export async function POST() {
         client,
         chatOffset: run.chat_offset ?? 0,
         messageOffset: run.message_offset ?? 0,
+        // A row we cannot parse is filed in the same quarantine the
+        // webhook uses — redacted, capped, and expiring on its own. That
+        // table is what turned "the webhook receives nothing" into a
+        // fixed bug once before; guessing at field names did not.
+        onUnreadable: async ({ kind, sample }) => {
+          await quarantineWebhookFailure({
+            db,
+            accountId: config.account_id,
+            configId: config.id,
+            provider: 'uazapi',
+            reasonCode:
+              kind === 'chat'
+                ? 'history_unreadable_chat'
+                : 'history_unreadable_message',
+            eventName: 'history_import',
+            rawBody: JSON.stringify(sample ?? null),
+            payload: sample,
+          });
+        },
         store: (event: NormalizedInboundMessage) =>
           processInboundMessage({
             db,
@@ -260,6 +280,12 @@ export async function POST() {
       chatsSeen,
       messagesImported,
       failedChats: batch.failedChats,
+      // Surfaced rather than swallowed: a non-zero count here is the
+      // difference between "this account has no old conversations" and
+      // "we cannot read the answer", and only an operator can tell which
+      // one they are looking at.
+      unreadableChats: batch.unreadableChats,
+      skippedMessages: batch.skippedMessages,
     });
   } catch (error) {
     return toErrorResponse(error);
