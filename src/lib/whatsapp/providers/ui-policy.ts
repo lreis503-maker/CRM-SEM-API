@@ -3,8 +3,8 @@ import type { WhatsAppCapability, WhatsAppCapabilitySnapshot } from './types';
 export type ProviderUiPolicyMessage = 'metaOnly' | 'unavailable';
 
 const defaultCopy: Record<ProviderUiPolicyMessage, string> = {
-  metaOnly: 'Disponivel somente com a API oficial da Meta',
-  unavailable: 'Recurso indisponivel enquanto a conexao do WhatsApp carrega',
+  metaOnly: 'Disponível somente com a API oficial da Meta',
+  unavailable: 'Recurso indisponível enquanto a conexão do WhatsApp carrega',
 };
 
 export function providerDisabledReason(

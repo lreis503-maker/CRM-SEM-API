@@ -26,7 +26,7 @@ const uazapiSnapshot: WhatsAppCapabilitySnapshot = {
 describe('providerDisabledReason', () => {
   it('explains why a Meta-only action is disabled under UAZAPI', () => {
     expect(providerDisabledReason(uazapiSnapshot, 'templates')).toBe(
-      'Disponivel somente com a API oficial da Meta'
+      'Disponível somente com a API oficial da Meta'
     );
   });
 
