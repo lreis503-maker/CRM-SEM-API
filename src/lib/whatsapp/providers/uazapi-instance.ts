@@ -97,6 +97,8 @@ export interface UazapiReplaceConfigInput {
 export interface UazapiConfigPatch {
   status?: WhatsAppConnectionStatus;
   connection_attempt_id?: string;
+  /** Rotated whenever the webhook is re-registered. Hash only. */
+  uazapi_webhook_secret_hash?: string;
   connected_phone?: string | null;
   connected_name?: string | null;
   connected_avatar_url?: string | null;
@@ -323,14 +325,7 @@ export async function beginUazapiConnection(
   const attemptId = newAttemptId();
 
   try {
-    await client.configureWebhook({
-      enabled: true,
-      url: buildUazapiWebhookUrl(ctx.siteUrl, secret),
-      events: [...WEBHOOK_EVENTS],
-      excludeMessages: [...WEBHOOK_EXCLUDED_MESSAGES],
-      addUrlEvents: false,
-      addUrlTypesMessages: false,
-    });
+    await registerWebhook(ctx, client, secret);
   } catch (error) {
     // Compensate: an instance we cannot receive from is worse than none.
     await client.deleteInstance().catch(() => undefined);
@@ -452,8 +447,41 @@ export async function refreshUazapiConnection(
 }
 
 /**
- * Issues a fresh QR on the instance the account already owns and rotates
- * the attempt id so responses from the expired session are ignored.
+ * Registers the callback UAZAPI should post to, for a given secret.
+ *
+ * UAZAPI's simple mode creates the instance's single webhook or updates
+ * it, so calling this again is safe and is how a corrected site URL takes
+ * effect.
+ */
+async function registerWebhook(
+  ctx: UazapiConnectionContext,
+  client: UazapiInstanceClient,
+  secret: string
+): Promise<void> {
+  await client.configureWebhook({
+    enabled: true,
+    url: buildUazapiWebhookUrl(ctx.siteUrl, secret),
+    events: [...WEBHOOK_EVENTS],
+    excludeMessages: [...WEBHOOK_EXCLUDED_MESSAGES],
+    addUrlEvents: false,
+    addUrlTypesMessages: false,
+  });
+}
+
+/**
+ * Issues a fresh QR on the instance the account already owns, rotates the
+ * attempt id so responses from the expired session are ignored, and
+ * re-registers the webhook.
+ *
+ * Re-registering matters: the callback URL is built from the
+ * installation's site URL, and without this it stayed frozen at whatever
+ * that was the very first time the account paired. An operator who fixed
+ * a wrong site URL would reconnect, see "connected", and still receive
+ * nothing — with no error anywhere to explain it.
+ *
+ * The route secret is rotated at the same time, because only its hash is
+ * stored and the original cannot be recovered. That also retires the old
+ * callback URL.
  */
 export async function regenerateUazapiQrCode(
   ctx: UazapiConnectionContext
@@ -466,13 +494,21 @@ export async function regenerateUazapiQrCode(
   const token = await ctx.loadInstanceToken(config.id);
   if (token === null) throw new UazapiConnectionError('missing_token');
 
-  const { now, newAttemptId } = contextDefaults(ctx);
+  const { now, newAttemptId, newSecret } = contextDefaults(ctx);
+  const client = ctx.instanceClientFor(token);
+
+  // Before the QR: a code scanned against a stale callback would connect
+  // and then deliver nothing.
+  const secret = newSecret();
+  await registerWebhook(ctx, client, secret);
+
   const attemptId = newAttemptId();
-  const instance = await ctx.instanceClientFor(token).connect();
+  const instance = await client.connect();
 
   await ctx.updateConfig(config.id, {
     status: toConnectionStatus(instance),
     connection_attempt_id: attemptId,
+    uazapi_webhook_secret_hash: hashUazapiWebhookSecret(secret),
     last_connection_error: null,
     connection_checked_at: now.toISOString(),
   });

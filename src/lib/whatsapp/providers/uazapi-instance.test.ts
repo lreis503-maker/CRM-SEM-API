@@ -432,6 +432,65 @@ describe('disconnectUazapiInstance', () => {
   });
 });
 
+describe('regenerateUazapiQrCode re-registers the webhook', () => {
+  it('points the webhook at the installation site URL in use right now', async () => {
+    const ctx = makeContext({
+      siteUrl: 'https://corrigido.example.com',
+      generateWebhookSecret: () => 'segredo-novo',
+    });
+    ports(ctx).loadConfig.mockResolvedValue(uazapiConfig());
+    ports(ctx).loadInstanceToken.mockResolvedValue(PLAIN_TOKEN);
+
+    await regenerateUazapiQrCode(ctx);
+
+    // Without this the URL stays frozen at whatever it was the first time
+    // the account paired, so fixing a wrong site URL never takes effect.
+    expect(ports(ctx).instance.configureWebhook).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'https://corrigido.example.com/api/whatsapp/webhook/uazapi/segredo-novo',
+      })
+    );
+  });
+
+  it('rotates the route secret and stores only the new hash', async () => {
+    const ctx = makeContext({ generateWebhookSecret: () => 'segredo-novo' });
+    ports(ctx).loadConfig.mockResolvedValue(uazapiConfig());
+    ports(ctx).loadInstanceToken.mockResolvedValue(PLAIN_TOKEN);
+
+    await regenerateUazapiQrCode(ctx);
+
+    const patch = ports(ctx).updateConfig.mock.calls[0][1];
+    expect(patch.uazapi_webhook_secret_hash).toBe(
+      hashUazapiWebhookSecret('segredo-novo')
+    );
+    expect(JSON.stringify(patch)).not.toContain('segredo-novo');
+  });
+
+  it('re-registers when a pairing is resumed, not only on a fresh one', async () => {
+    const ctx = makeContext();
+    ports(ctx).loadConfig.mockResolvedValue(uazapiConfig());
+    ports(ctx).loadInstanceToken.mockResolvedValue(PLAIN_TOKEN);
+
+    await beginUazapiConnection(ctx);
+
+    expect(ports(ctx).admin.createInstance).not.toHaveBeenCalled();
+    expect(ports(ctx).instance.configureWebhook).toHaveBeenCalledOnce();
+  });
+
+  it('does not touch the stored hash when the provider refuses the webhook', async () => {
+    const ctx = makeContext();
+    ports(ctx).loadConfig.mockResolvedValue(uazapiConfig());
+    ports(ctx).loadInstanceToken.mockResolvedValue(PLAIN_TOKEN);
+    ports(ctx).instance.configureWebhook.mockRejectedValue(
+      new Error('upstream')
+    );
+
+    await expect(regenerateUazapiQrCode(ctx)).rejects.toThrow();
+    expect(ports(ctx).updateConfig).not.toHaveBeenCalled();
+    expect(ports(ctx).instance.connect).not.toHaveBeenCalled();
+  });
+});
+
 describe('removeUazapiConnection', () => {
   it('removes the local row only after the remote instance is gone', async () => {
     const order: string[] = [];
