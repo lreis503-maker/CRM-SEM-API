@@ -62,6 +62,9 @@ import { NodeConfigForm } from './forms/node-config-form';
 import { NodeKeySelect } from './forms/fields';
 import { IssueLine } from './validation-panel';
 import { useFlowEditor, type BuilderState } from './flow-editor-state';
+import { useWhatsAppCapabilities } from '@/hooks/use-whatsapp-capabilities';
+import { ProviderDisabledControl } from '@/components/whatsapp/provider-disabled-control';
+import { providerDisabledReason } from '@/lib/whatsapp/providers/ui-policy';
 
 // ============================================================
 // Local state shape — mirrors the DB but the configs are typed
@@ -580,6 +583,8 @@ function NodeConfigWithAdvanced({
 // ============================================================
 
 function AddNodeButton({ onAdd, t }: { onAdd: (type: NodeType) => void; t: ReturnType<typeof useTranslations> }) {
+  const tProvider = useTranslations('provider');
+  const { snapshot } = useWhatsAppCapabilities();
   const types: NodeType[] = [
     'start',
     'send_buttons',
@@ -615,8 +620,16 @@ function AddNodeButton({ onAdd, t }: { onAdd: (type: NodeType) => void; t: Retur
               </DropdownMenuLabel>
               {group.types.map((t_type) => {
                 const meta = NODE_META[t_type];
+                const disabledReason = (t_type === 'send_buttons' || t_type === 'send_list')
+                  ? providerDisabledReason(snapshot, 'interactive', (key) => tProvider(key))
+                  : null;
                 return (
-                  <DropdownMenuItem key={t_type} onClick={() => onAdd(t_type)}>
+                  disabledReason ? <ProviderDisabledControl key={t_type} reason={disabledReason}>
+                    <span className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-sm text-muted-foreground">
+                      <meta.icon className={cn('h-3.5 w-3.5', meta.color)} />
+                      {t(`nodes.${t_type}.label`)}
+                    </span>
+                  </ProviderDisabledControl> : <DropdownMenuItem key={t_type} onClick={() => onAdd(t_type)}>
                     <meta.icon className={cn('h-3.5 w-3.5', meta.color)} />
                     {t(`nodes.${t_type}.label`)}
                   </DropdownMenuItem>

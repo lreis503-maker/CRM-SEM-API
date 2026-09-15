@@ -42,6 +42,9 @@ import {
   useFlowEditor,
   type BuilderState,
 } from "./flow-editor-state";
+import { useWhatsAppCapabilities } from '@/hooks/use-whatsapp-capabilities';
+import { ProviderDisabledControl } from '@/components/whatsapp/provider-disabled-control';
+import { providerDisabledReason } from '@/lib/whatsapp/providers/ui-policy';
 
 export function EditorHeader() {
   const router = useRouter();
@@ -58,6 +61,18 @@ export function EditorHeader() {
     setStatus,
     deleteFlow,
   } = useFlowEditor();
+  const tProvider = useTranslations('provider');
+  const { snapshot, supports } = useWhatsAppCapabilities();
+  const hasUnsupportedInteractiveNodes =
+    !supports('interactive') &&
+    state.nodes.some(
+      (node) => node.node_type === 'send_buttons' || node.node_type === 'send_list',
+    );
+  const interactiveDisabledReason = providerDisabledReason(
+    snapshot,
+    'interactive',
+    (key) => tProvider(key),
+  );
 
   return (
     <div className="flex flex-col gap-1.5 px-6 pt-5">
@@ -132,7 +147,12 @@ export function EditorHeader() {
               {t("pause")}
             </Button>
           ) : (
-            <Button
+            hasUnsupportedInteractiveNodes ? <ProviderDisabledControl reason={interactiveDisabledReason ?? tProvider('uazapiUnavailable')}>
+              <Button variant="outline" size="sm" disabled>
+                <PlayCircle className="h-3.5 w-3.5" />
+                {t("activate")}
+              </Button>
+            </ProviderDisabledControl> : <Button
               variant="outline"
               size="sm"
               onClick={() => void setStatus("active")}
@@ -159,6 +179,12 @@ export function EditorHeader() {
           </Button>
         </div>
       </div>
+
+      {hasUnsupportedInteractiveNodes ? (
+        <p role="status" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+          {interactiveDisabledReason}
+        </p>
+      ) : null}
 
       {/* ---- description note (subtle, inline-editable) ---- */}
       <input

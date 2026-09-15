@@ -14,6 +14,11 @@
     "noAccount": "계정이 없으신가요?",
     "createAccount": "계정 만들기"
   },
+  "provider": {
+    "metaOnly": "Meta 공식 API에서만 사용할 수 있습니다",
+    "uazapiUnavailable": "WhatsApp 연결을 불러오는 동안 이 기능을 사용할 수 없습니다.",
+    "unsupportedPage": "브로드캐스트는 Meta 공식 API에서만 사용할 수 있습니다."
+  },
   "Sidebar": {
     "title": "Vortex CRM",
     "primaryNav": "기본 메뉴",

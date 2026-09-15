@@ -6,6 +6,8 @@ import { useTranslations } from 'next-intl';
 
 import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
+import { useWhatsAppCapabilities } from '@/hooks/use-whatsapp-capabilities';
+import { providerDisabledReason } from '@/lib/whatsapp/providers/ui-policy';
 import { SettingsRail } from '@/components/settings/settings-rail';
 import { SettingsOverview } from '@/components/settings/settings-overview';
 import { ProfileForm } from '@/components/settings/profile-form';
@@ -45,12 +47,19 @@ function SettingsPageInner() {
   const { defaultCurrency } = useAuth();
   const { mode } = useTheme();
   const t = useTranslations('Settings');
+  const tProvider = useTranslations('provider');
+  const { snapshot, supports } = useWhatsAppCapabilities();
 
   // The URL (`?tab=`) is the single source of truth for the active
   // section — deep-linkable, and it keeps the existing links in the
   // app sidebar/header working. Legacy tab values (tags, custom-fields)
   // resolve onto their new home; unknown/empty → the Overview landing.
   const section = resolveSection(searchParams.get('tab'));
+  const templateDisabledReason = providerDisabledReason(
+    snapshot,
+    'templates',
+    (key) => tProvider(key),
+  );
 
   const go = (next: SettingsSection) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -74,8 +83,19 @@ function SettingsPageInner() {
     profile: <ProfileForm />,
     security: <SecurityPanel />,
     appearance: <AppearancePanel />,
-    whatsapp: <WhatsAppConfig />,
-    templates: <TemplateManager />,
+    whatsapp: <>
+      {searchParams.get('reason') === 'provider_not_supported' ? (
+        <div role="status" className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
+          {tProvider('unsupportedPage')}
+        </div>
+      ) : null}
+      <WhatsAppConfig />
+    </>,
+    templates: supports('templates') ? <TemplateManager /> : (
+      <div role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
+        {templateDisabledReason}
+      </div>
+    ),
     'quick-replies': <QuickRepliesManager />,
     fields: <FieldsAndTagsPanel />,
     deals: <DealsSettings />,
@@ -95,7 +115,12 @@ function SettingsPageInner() {
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[236px_minmax(0,1fr)] lg:items-start">
-        <SettingsRail active={section} onSelect={go} hints={hints} />
+        <SettingsRail
+          active={section}
+          onSelect={go}
+          hints={hints}
+          disabledSections={{ templates: templateDisabledReason ?? undefined }}
+        />
         <div className="min-w-0">{panel[section]}</div>
       </div>
     </div>

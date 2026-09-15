@@ -42,6 +42,7 @@ import {
   getRecipientStatus,
 } from '@/lib/broadcast-status';
 import { useTranslations } from 'next-intl';
+import { ProviderPageGuard } from '@/components/whatsapp/provider-page-guard';
 
 interface StatCardProps {
   label: string;
@@ -146,7 +147,7 @@ function downloadBlob(filename: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
-export default function BroadcastDetailPage() {
+function BroadcastDetailPageContent() {
   const params = useParams();
   const router = useRouter();
   const t = useTranslations('Broadcasts.detail');
@@ -638,5 +639,13 @@ export default function BroadcastDetailPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function BroadcastDetailPage() {
+  return (
+    <ProviderPageGuard capability="broadcasts">
+      <BroadcastDetailPageContent />
+    </ProviderPageGuard>
   );
 }

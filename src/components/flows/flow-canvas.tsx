@@ -97,6 +97,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useFlowEditor } from './flow-editor-state';
 import { NodeConfigForm } from './forms/node-config-form';
+import { useWhatsAppCapabilities } from '@/hooks/use-whatsapp-capabilities';
+import { ProviderDisabledControl } from '@/components/whatsapp/provider-disabled-control';
+import { providerDisabledReason } from '@/lib/whatsapp/providers/ui-policy';
 
 // React-Flow node `data` payload — the bits our custom renderer needs.
 interface NodeData extends Record<string, unknown> {
@@ -707,6 +710,8 @@ const ADD_NODE_TYPES: NodeType[] = [
 function CanvasAddNodeButton({ t }: { t: ReturnType<typeof useTranslations> }) {
   const reactFlow = useReactFlow();
   const { addNode, updateNodePosition } = useFlowEditor();
+  const tProvider = useTranslations('provider');
+  const { snapshot } = useWhatsAppCapabilities();
 
   const handleAdd = (type: NodeType) => {
     const key = addNode(type);
@@ -758,8 +763,16 @@ function CanvasAddNodeButton({ t }: { t: ReturnType<typeof useTranslations> }) {
               </DropdownMenuLabel>
               {group.types.map((t_type) => {
                 const meta = NODE_META[t_type];
+                const disabledReason = (t_type === 'send_buttons' || t_type === 'send_list')
+                  ? providerDisabledReason(snapshot, 'interactive', (key) => tProvider(key))
+                  : null;
                 return (
-                  <DropdownMenuItem
+                  disabledReason ? <ProviderDisabledControl key={t_type} reason={disabledReason}>
+                    <span className="flex gap-3 rounded-md px-1.5 py-2 opacity-50">
+                      <NodeIconChip type={t_type} size={28} iconSize={16} className="rounded-md" />
+                      <span className="flex flex-col"><span className="text-popover-foreground text-[13px] font-semibold">{t(`nodes.${t_type}.label`)}</span><span className="text-muted-foreground text-[11.5px]">{t(`nodes.${t_type}.blurb`)}</span></span>
+                    </span>
+                  </ProviderDisabledControl> : <DropdownMenuItem
                     key={t_type}
                     onClick={() => handleAdd(t_type)}
                     className="gap-3 py-2"

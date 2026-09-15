@@ -14,6 +14,11 @@
     "noAccount": "Não tem uma conta?",
     "createAccount": "Criar conta"
   },
+  "provider": {
+    "metaOnly": "Disponivel somente com a API oficial da Meta",
+    "uazapiUnavailable": "Este recurso esta indisponivel enquanto a conexao do WhatsApp carrega.",
+    "unsupportedPage": "Disparos estao disponiveis somente com a API oficial da Meta."
+  },
   "Sidebar": {
     "title": "Vortex CRM",
     "primaryNav": "Principal",

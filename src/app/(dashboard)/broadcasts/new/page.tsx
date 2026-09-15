@@ -13,6 +13,7 @@ import { Step4ScheduleSend } from '@/components/broadcasts/step4-schedule-send';
 import { useBroadcastSending } from '@/hooks/use-broadcast-sending';
 import { Check } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { ProviderPageGuard } from '@/components/whatsapp/provider-page-guard';
 
 const steps = [
   { label: 'template', key: 'template' },
@@ -21,7 +22,7 @@ const steps = [
   { label: 'send', key: 'send' },
 ] as const;
 
-export default function NewBroadcastPage() {
+function NewBroadcastPageContent() {
   const router = useRouter();
   const t = useTranslations('Broadcasts.new');
   const { accountId } = useAuth();
@@ -231,5 +232,13 @@ export default function NewBroadcastPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function NewBroadcastPage() {
+  return (
+    <ProviderPageGuard capability="broadcasts">
+      <NewBroadcastPageContent />
+    </ProviderPageGuard>
   );
 }
