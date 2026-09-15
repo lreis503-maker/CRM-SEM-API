@@ -1754,7 +1754,8 @@
             "provider_unavailable": "O provedor não respondeu. Tente de novo em alguns minutos.",
             "uazapi_not_available": "A conexão por QR Code não está disponível.",
             "network": "Falha de conexão. Verifique a internet e tente de novo.",
-            "unknown": "Não foi possível baixar o histórico agora."
+            "unknown": "Não foi possível baixar o histórico agora.",
+            "unreadable": "O provedor respondeu num formato que este CRM não entende. O download foi interrompido."
           },
           "unreadableHint": "Atenção: {count} registros vieram num formato que este CRM não entende e ficaram de fora. O download pode estar trazendo menos do que existe. Avise o responsável pela instalação."
         },

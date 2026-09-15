@@ -42,12 +42,17 @@ function reader(options: {
   failChats?: string[];
   /** Rows the client returned but could not parse. */
   unreadable?: Record<string, unknown>[];
+  /** The response carried no list at all. */
+  noListFound?: boolean;
+  bodySample?: unknown;
 }) {
   const findChats = vi.fn(
     async ({ limit, offset }: { limit: number; offset: number }) =>
       ({
         chats: options.chats.slice(offset, offset + limit),
         unreadable: offset === 0 ? (options.unreadable ?? []) : [],
+        noListFound: options.noListFound ?? false,
+        bodySample: options.noListFound ? (options.bodySample ?? null) : null,
       }) satisfies UazapiChatPage
   );
 
@@ -574,5 +579,62 @@ describe('importUazapiHistoryBatch — an answer we cannot read', () => {
         },
       })
     ).resolves.toMatchObject({ unreadableChats: 1 });
+  });
+});
+
+describe('importUazapiHistoryBatch — an answer with no list in it', () => {
+  it('does not call an unreadable envelope an empty account', async () => {
+    // The exact symptom that made this import report "0 conversations"
+    // for an account full of them: the body parsed as JSON, held no
+    // array we recognised, and looked identical to having none.
+    const client = reader({
+      chats: [],
+      noListFound: true,
+      bodySample: { ok: true, total: 0 },
+    });
+
+    const result = await importUazapiHistoryBatch({
+      client,
+      ...START,
+      store: collector().store,
+    });
+
+    expect(result.done).toBe(false);
+    expect(result.unreadableChatList).toBe(true);
+  });
+
+  it('hands the whole body out so the shape can be read off it', async () => {
+    const seen: unknown[] = [];
+    const client = reader({
+      chats: [],
+      noListFound: true,
+      bodySample: { ok: true, total: 0 },
+    });
+
+    await importUazapiHistoryBatch({
+      client,
+      ...START,
+      store: collector().store,
+      onUnreadable: async (input) => {
+        seen.push(input);
+      },
+    });
+
+    expect(seen).toEqual([
+      { kind: 'chat_list', sample: { ok: true, total: 0 } },
+    ]);
+  });
+
+  it('still calls a genuinely empty list the end of the walk', async () => {
+    const client = reader({ chats: [] });
+
+    const result = await importUazapiHistoryBatch({
+      client,
+      ...START,
+      store: collector().store,
+    });
+
+    expect(result.done).toBe(true);
+    expect(result.unreadableChatList).toBe(false);
   });
 });

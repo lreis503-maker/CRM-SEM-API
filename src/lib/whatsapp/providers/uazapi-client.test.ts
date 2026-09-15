@@ -435,6 +435,83 @@ describe('UAZAPI history reads', () => {
     expect(page.chats[0]?.id).toBe('ok@s.whatsapp.net');
   });
 
+  it('finds the list whatever the envelope calls it', async () => {
+    // The documented key is not the only one that has shown up. Rather
+    // than add a guess per release, take the first array of objects the
+    // body offers — there is only ever one list in these responses.
+    const fetchImpl = fetchReturning({
+      status: 'ok',
+      results: [{ id: 'a@s.whatsapp.net' }, { id: 'b@s.whatsapp.net' }],
+    });
+
+    const page = await instanceClient(fetchImpl).findChats({
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(page.chats.map((c) => c.id)).toEqual([
+      'a@s.whatsapp.net',
+      'b@s.whatsapp.net',
+    ]);
+  });
+
+  it('prefers the documented key over any other array present', async () => {
+    const fetchImpl = fetchReturning({
+      chats: [{ id: 'right@s.whatsapp.net' }],
+      labels: [{ id: 'wrong' }],
+    });
+
+    const page = await instanceClient(fetchImpl).findChats({
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(page.chats.map((c) => c.id)).toEqual(['right@s.whatsapp.net']);
+  });
+
+  it('ignores arrays that hold no objects', async () => {
+    const fetchImpl = fetchReturning({
+      warnings: ['nothing', 'to', 'see'],
+      items: [{ id: 'a@s.whatsapp.net' }],
+    });
+
+    const page = await instanceClient(fetchImpl).findChats({
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(page.chats.map((c) => c.id)).toEqual(['a@s.whatsapp.net']);
+  });
+
+  it('keeps a sample when it cannot find a list at all', async () => {
+    // An account with no conversations answers with an empty list. A body
+    // holding no list at all is a shape we do not understand — and the
+    // two must never look the same, because one is normal and the other
+    // means the import is reading nothing.
+    const fetchImpl = fetchReturning({ ok: true, total: 0 });
+
+    const page = await instanceClient(fetchImpl).findChats({
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(page.chats).toEqual([]);
+    expect(page.noListFound).toBe(true);
+    expect(page.bodySample).toEqual({ ok: true, total: 0 });
+  });
+
+  it('calls an empty list an empty account, not a failure', async () => {
+    const fetchImpl = fetchReturning({ chats: [] });
+
+    const page = await instanceClient(fetchImpl).findChats({
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(page.noListFound).toBe(false);
+    expect(page.bodySample).toBeNull();
+  });
+
   it('hands back the rows it could not read, instead of dropping them', async () => {
     // A chat with no id in any spelling we know. Silently skipping it is
     // how an import reports "no conversations" for an account that has

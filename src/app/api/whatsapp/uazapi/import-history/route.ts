@@ -206,10 +206,7 @@ export async function POST() {
             accountId: config.account_id,
             configId: config.id,
             provider: 'uazapi',
-            reasonCode:
-              kind === 'chat'
-                ? 'history_unreadable_chat'
-                : 'history_unreadable_message',
+            reasonCode: `history_unreadable_${kind}`,
             eventName: 'history_import',
             rawBody: JSON.stringify(sample ?? null),
             payload: sample,
@@ -259,6 +256,34 @@ export async function POST() {
       );
     }
 
+    // An answer with no list in it will not read any better on the next
+    // attempt, and the cursor has not moved — so calling again would
+    // hammer the provider with the same failing request until the
+    // browser's own batch cap stopped it. The run is closed as failed,
+    // which is also what puts "continue where it stopped" back on the
+    // button once the cause is fixed.
+    if (batch.unreadableChatList) {
+      await db
+        .from('whatsapp_history_imports')
+        .update({
+          status: 'failed',
+          error_code: 'unreadable_chat_list',
+          finished_at: new Date().toISOString(),
+        })
+        .eq('id', run.id);
+
+      return NextResponse.json({
+        done: false,
+        stopped: true,
+        unreadableChatList: true,
+        chatsSeen: run.chats_seen ?? 0,
+        messagesImported: run.messages_imported ?? 0,
+        failedChats: batch.failedChats,
+        unreadableChats: batch.unreadableChats,
+        skippedMessages: batch.skippedMessages,
+      });
+    }
+
     const chatsSeen = (run.chats_seen ?? 0) + batch.chatsSeen;
     const messagesImported =
       (run.messages_imported ?? 0) + batch.messagesImported;
@@ -285,6 +310,7 @@ export async function POST() {
       // "we cannot read the answer", and only an operator can tell which
       // one they are looking at.
       unreadableChats: batch.unreadableChats,
+      unreadableChatList: batch.unreadableChatList,
       skippedMessages: batch.skippedMessages,
     });
   } catch (error) {

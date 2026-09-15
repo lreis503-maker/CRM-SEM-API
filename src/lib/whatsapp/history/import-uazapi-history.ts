@@ -89,7 +89,7 @@ export interface UazapiHistoryBatchInput {
    * they diagnose are worse than none.
    */
   onUnreadable?(input: {
-    kind: 'chat' | 'message';
+    kind: 'chat' | 'message' | 'chat_list';
     sample: unknown;
   }): Promise<void>;
   chatsPerBatch?: number;
@@ -113,6 +113,12 @@ export interface UazapiHistoryBatchResult {
    * account than it thinks.
    */
   unreadableChats: number;
+  /**
+   * True when the provider's answer carried no list at all — a shape
+   * this CRM does not understand. Distinct from an empty list, which
+   * simply means the account has no more conversations.
+   */
+  unreadableChatList: boolean;
   /** Where the next batch should start. */
   nextChatOffset: number;
   nextMessageOffset: number;
@@ -141,10 +147,11 @@ export async function importUazapiHistoryBatch(
   const messagesPerPage = input.messagesPerPage ?? HISTORY_MESSAGES_PER_PAGE;
   const messageBudget = input.messageBudget ?? HISTORY_MESSAGE_BUDGET;
 
-  const { chats, unreadable } = await input.client.findChats({
-    limit: chatsPerBatch,
-    offset: input.chatOffset,
-  });
+  const { chats, unreadable, noListFound, bodySample } =
+    await input.client.findChats({
+      limit: chatsPerBatch,
+      offset: input.chatOffset,
+    });
 
   let chatsSeen = 0;
   let messagesImported = 0;
@@ -152,7 +159,10 @@ export async function importUazapiHistoryBatch(
   let failedChats = 0;
   let samplesReported = 0;
 
-  async function reportUnreadable(kind: 'chat' | 'message', sample: unknown) {
+  async function reportUnreadable(
+    kind: 'chat' | 'message' | 'chat_list',
+    sample: unknown
+  ) {
     if (!input.onUnreadable || samplesReported >= MAX_UNREADABLE_SAMPLES) {
       return;
     }
@@ -162,6 +172,13 @@ export async function importUazapiHistoryBatch(
     } catch {
       // Recording a diagnostic must never be what stops an import.
     }
+  }
+
+  // The body held no list anywhere. That is not an empty account — it
+  // is an answer in a shape this CRM cannot read, and the sample is the
+  // only way to find out which shape.
+  if (noListFound) {
+    await reportUnreadable('chat_list', bodySample);
   }
 
   for (const row of unreadable) {
@@ -243,6 +260,7 @@ export async function importUazapiHistoryBatch(
         skippedMessages,
         failedChats,
         unreadableChats: unreadable.length,
+        unreadableChatList: noListFound,
         nextChatOffset: chatOffset,
         // Mid-thread when the chat is unfinished; the start of the next
         // chat when the budget ran out exactly as one ended.
@@ -258,13 +276,13 @@ export async function importUazapiHistoryBatch(
     skippedMessages,
     failedChats,
     unreadableChats: unreadable.length,
+    unreadableChatList: noListFound,
     nextChatOffset: chatOffset,
     nextMessageOffset: 0,
-    // The only way an import ends: the provider listed no chats at all —
-    // neither usable ones nor ones we failed to read. There is
-    // deliberately no ceiling on how far the walk goes, and a page we
-    // could not parse is never mistaken for the end, because those two
-    // silences are exactly what made a truncated import look finished.
-    done: chats.length === 0 && unreadable.length === 0,
+    // The only way an import ends: the provider returned a list, and it
+    // was empty. A body with no list in it, or one whose rows we could
+    // not read, is never mistaken for the end — those two silences are
+    // exactly what made a truncated import look finished.
+    done: chats.length === 0 && unreadable.length === 0 && !noListFound,
   };
 }

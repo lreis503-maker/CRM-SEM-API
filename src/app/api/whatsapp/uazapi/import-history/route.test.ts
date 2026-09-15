@@ -111,6 +111,7 @@ beforeEach(() => {
     skippedMessages: 0,
     failedChats: 0,
     unreadableChats: 0,
+    unreadableChatList: false,
     nextChatOffset: 3,
     nextMessageOffset: 0,
     done: false,
@@ -406,5 +407,94 @@ describe('POST /api/whatsapp/uazapi/import-history — diagnosing a silent impor
     // "0 conversas importadas" with a 7 here means the shape is wrong,
     // not that the account is empty.
     expect(body).toMatchObject({ unreadableChats: 7, skippedMessages: 4 });
+  });
+});
+
+describe('POST /api/whatsapp/uazapi/import-history — unreadable envelope', () => {
+  it('files the whole body under its own reason code', async () => {
+    mocks.importUazapiHistoryBatch.mockImplementation(
+      async (input: {
+        onUnreadable: (i: { kind: string; sample: unknown }) => Promise<void>;
+      }) => {
+        await input.onUnreadable({
+          kind: 'chat_list',
+          sample: { ok: true, total: 0 },
+        });
+        return {
+          chatsSeen: 0,
+          messagesImported: 0,
+          skippedMessages: 0,
+          failedChats: 0,
+          unreadableChats: 0,
+          unreadableChatList: true,
+          nextChatOffset: 0,
+          nextMessageOffset: 0,
+          done: false,
+        };
+      }
+    );
+
+    const body = await (await POST()).json();
+
+    expect(mocks.quarantineWebhookFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reasonCode: 'history_unreadable_chat_list',
+        payload: { ok: true, total: 0 },
+      })
+    );
+    expect(body).toMatchObject({ unreadableChatList: true, done: false });
+  });
+});
+
+describe('POST /api/whatsapp/uazapi/import-history — refusing to spin', () => {
+  it('closes the run and tells the browser to stop', async () => {
+    mocks.importUazapiHistoryBatch.mockResolvedValue({
+      chatsSeen: 0,
+      messagesImported: 0,
+      skippedMessages: 0,
+      failedChats: 0,
+      unreadableChats: 0,
+      unreadableChatList: true,
+      // The cursor has not moved: calling again reads the same page and
+      // fails the same way.
+      nextChatOffset: 0,
+      nextMessageOffset: 0,
+      done: false,
+    });
+
+    const body = await (await POST()).json();
+
+    expect(body).toMatchObject({ stopped: true, done: false });
+    expect(mocks.updated).toContainEqual(
+      expect.objectContaining({
+        table: 'whatsapp_history_imports',
+        status: 'failed',
+        error_code: 'unreadable_chat_list',
+      })
+    );
+  });
+
+  it('does not advance the cursor past a page it never read', async () => {
+    mocks.run = { ...mocks.run, chat_offset: 16, message_offset: 200 };
+    mocks.importUazapiHistoryBatch.mockResolvedValue({
+      chatsSeen: 0,
+      messagesImported: 0,
+      skippedMessages: 0,
+      failedChats: 0,
+      unreadableChats: 0,
+      unreadableChatList: true,
+      nextChatOffset: 16,
+      nextMessageOffset: 200,
+      done: false,
+    });
+
+    await POST();
+
+    // Only the failure is written. Moving the cursor on would skip
+    // conversations nobody ever looked at.
+    const cursorWrites = mocks.updated.filter(
+      (u: Record<string, unknown>) => 'chat_offset' in u
+    );
+    expect(cursorWrites).toHaveLength(0);
   });
 });

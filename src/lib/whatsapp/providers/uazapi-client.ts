@@ -141,6 +141,10 @@ export interface UazapiChatPage {
    * redacted sample so the real shape can be read off the database.
    */
   unreadable: Record<string, unknown>[];
+  /** True when the body carried no list at all. See {@link ListLookup}. */
+  noListFound: boolean;
+  /** The body itself, kept only when no list was found in it. */
+  bodySample: unknown;
 }
 
 /**
@@ -600,21 +604,60 @@ const FIND_MESSAGES: UazapiOperation = {
  * down. A body that names no list at all is an empty page, not a broken
  * response: "this account has no chats" is a normal answer.
  */
+/** The list found in a response, and whether one was found at all. */
+interface ListLookup {
+  rows: Record<string, unknown>[];
+  /**
+   * True when the body held no list anywhere — a shape this client does
+   * not understand. An account with nothing in it answers with an EMPTY
+   * list, which is a different thing and must never be confused with
+   * this one: the first is normal, the second means we are reading none
+   * of the answer.
+   */
+  noListFound: boolean;
+}
+
+function findRecordList(body: unknown, ...keys: string[]): ListLookup {
+  const asRows = (value: unknown[]): Record<string, unknown>[] =>
+    value
+      .map((item) => asRecord(item))
+      .filter((item): item is Record<string, unknown> => item !== null);
+
+  if (Array.isArray(body)) {
+    return { rows: asRows(body), noListFound: false };
+  }
+
+  const record = asRecord(body);
+  if (record === null) return { rows: [], noListFound: true };
+
+  // The documented keys first, so a body that also carries some other
+  // list (labels, warnings) cannot win by being declared earlier.
+  for (const key of keys) {
+    const value = record[key];
+    if (Array.isArray(value)) {
+      return { rows: asRows(value), noListFound: false };
+    }
+  }
+
+  // Then anything that looks like the list: the real payloads have
+  // already diverged from the contract once, and adding a guessed key
+  // per release is how a reader stays permanently one release behind.
+  // Only arrays of objects qualify — a list of warning strings is not
+  // the list we are after.
+  for (const value of Object.values(record)) {
+    if (!Array.isArray(value) || value.length === 0) continue;
+    const rows = asRows(value);
+    if (rows.length > 0) return { rows, noListFound: false };
+  }
+
+  return { rows: [], noListFound: true };
+}
+
 function asRecordList(
   body: unknown,
   ...keys: string[]
 ): Record<string, unknown>[] {
-  const raw = Array.isArray(body)
-    ? body
-    : keys
-        .map((key) => (asRecord(body) ?? {})[key])
-        .find((value): value is unknown[] => Array.isArray(value));
-
-  if (!Array.isArray(raw)) return [];
-
-  return raw
-    .map((item) => asRecord(item))
-    .filter((item): item is Record<string, unknown> => item !== null);
+  return findRecordList(body, ...keys).rows;
 }
 
 function parseChatSummary(
@@ -844,7 +887,7 @@ export function createUazapiInstanceClient(
         },
       });
 
-      const rows = asRecordList(body, 'chats', 'data');
+      const { rows, noListFound } = findRecordList(body, 'chats', 'data');
       const chats: UazapiChatSummary[] = [];
       const unreadable: Record<string, unknown>[] = [];
 
@@ -854,7 +897,14 @@ export function createUazapiInstanceClient(
         else chats.push(chat);
       }
 
-      return { chats, unreadable };
+      return {
+        chats,
+        unreadable,
+        noListFound,
+        // Only when we found nothing: otherwise this would copy a whole
+        // page of conversations into a diagnostics table for no reason.
+        bodySample: noListFound ? body : null,
+      };
     },
 
     async findMessages(input) {

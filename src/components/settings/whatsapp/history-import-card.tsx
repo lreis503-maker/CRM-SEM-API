@@ -37,6 +37,13 @@ interface BatchResponse {
   failedChats?: number;
   /** Rows the provider returned that this CRM could not read. */
   unreadableChats?: number;
+  /** The answer held no list at all — a shape we cannot read. */
+  unreadableChatList?: boolean;
+  /**
+   * The server says not to call again: the next call would fail the same
+   * way, and the cursor has not moved.
+   */
+  stopped?: boolean;
   skippedMessages?: number;
   error?: string;
 }
@@ -128,13 +135,27 @@ export function HistoryImportCard({
 
         setUnreadable(
           (previous) =>
-            previous + (body.unreadableChats ?? 0) + (body.skippedMessages ?? 0)
+            previous +
+            (body.unreadableChats ?? 0) +
+            (body.skippedMessages ?? 0) +
+            // One unreadable envelope means the whole page was lost, not
+            // one row, so it has to register as something rather than
+            // adding zero.
+            (body.unreadableChatList === true ? 1 : 0)
         );
 
         if (body.done === true) {
           toast.success(
             t('finished', { messages: body.messagesImported ?? 0 })
           );
+          return;
+        }
+
+        // Retrying an answer we cannot read just repeats it, and the
+        // cursor has not moved — so this would spin until the batch cap
+        // stopped it. The amber line below stays on screen.
+        if (body.stopped === true) {
+          toast.error(t('errors.unreadable'));
           return;
         }
       }
