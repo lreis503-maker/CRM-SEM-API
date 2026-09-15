@@ -13,7 +13,6 @@ ALTER TABLE whatsapp_config
   ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'meta',
   ADD COLUMN IF NOT EXISTS uazapi_instance_id TEXT,
   ADD COLUMN IF NOT EXISTS uazapi_instance_name TEXT,
-  ADD COLUMN IF NOT EXISTS uazapi_instance_token TEXT,
   ADD COLUMN IF NOT EXISTS uazapi_webhook_secret_hash TEXT,
   ADD COLUMN IF NOT EXISTS connection_attempt_id UUID,
   ADD COLUMN IF NOT EXISTS connected_phone TEXT,
@@ -42,7 +41,6 @@ ALTER TABLE whatsapp_config ADD CONSTRAINT whatsapp_config_provider_fields_check
       AND access_token IS NOT NULL
       AND uazapi_instance_id IS NULL
       AND uazapi_instance_name IS NULL
-      AND uazapi_instance_token IS NULL
       AND uazapi_webhook_secret_hash IS NULL
       AND connection_attempt_id IS NULL)
     OR
@@ -52,10 +50,29 @@ ALTER TABLE whatsapp_config ADD CONSTRAINT whatsapp_config_provider_fields_check
       AND access_token IS NULL
       AND verify_token IS NULL
       AND uazapi_instance_id IS NOT NULL
-      AND uazapi_instance_token IS NOT NULL
       AND uazapi_webhook_secret_hash IS NOT NULL
       AND connection_attempt_id IS NOT NULL)
   );
+
+-- The browser can SELECT whatsapp_config through the account-member RLS
+-- policy added in migration 017. Keep the single configuration row as
+-- the source of provider state, but isolate its encrypted UAZAPI token in
+-- a one-to-one table that has no browser policies. The format check matches
+-- the AES-256-GCM ciphertext emitted by src/lib/whatsapp/encryption.ts:
+-- 12-byte IV, non-empty ciphertext, and 16-byte authentication tag.
+CREATE TABLE IF NOT EXISTS whatsapp_config_secrets (
+  whatsapp_config_id UUID PRIMARY KEY REFERENCES whatsapp_config(id) ON DELETE CASCADE,
+  uazapi_instance_token TEXT NOT NULL,
+  CONSTRAINT whatsapp_config_secrets_uazapi_instance_token_encrypted_check
+    CHECK (uazapi_instance_token ~ '^[0-9A-Fa-f]{24}:[0-9A-Fa-f]+:[0-9A-Fa-f]{32}$')
+);
+
+ALTER TABLE whatsapp_config_secrets ENABLE ROW LEVEL SECURITY;
+
+COMMENT ON TABLE whatsapp_config_secrets IS
+  'Server-only provider credentials for the account''s single whatsapp_config row.';
+COMMENT ON COLUMN whatsapp_config_secrets.uazapi_instance_token IS
+  'AES-256-GCM ciphertext produced by the server-side WhatsApp encryption helper; never plaintext.';
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_config_uazapi_instance
   ON whatsapp_config(uazapi_instance_id)

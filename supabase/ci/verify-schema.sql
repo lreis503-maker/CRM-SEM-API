@@ -75,6 +75,60 @@ BEGIN
       'messages.error_code/error_title/error_details are missing — migration 042 did not apply';
   END IF;
 
+  -- UAZAPI instance tokens must never inherit whatsapp_config's
+  -- account-member SELECT policy. Migration 043 keeps the single
+  -- account configuration row but moves its encrypted provider secret
+  -- into a one-to-one table with RLS and no browser policies.
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'whatsapp_config'
+      AND column_name = 'uazapi_instance_token'
+  ) THEN
+    RAISE EXCEPTION
+      'whatsapp_config exposes uazapi_instance_token to account-member SELECT';
+  END IF;
+
+  IF to_regclass('public.whatsapp_config_secrets') IS NULL THEN
+    RAISE EXCEPTION
+      'whatsapp_config_secrets is missing — UAZAPI credentials have no server-only storage';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'whatsapp_config_secrets'
+      AND column_name = 'uazapi_instance_token' AND is_nullable = 'NO'
+  ) THEN
+    RAISE EXCEPTION
+      'whatsapp_config_secrets.uazapi_instance_token must exist and be required';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.whatsapp_config_secrets'::regclass
+      AND conname = 'whatsapp_config_secrets_uazapi_instance_token_encrypted_check'
+      AND contype = 'c'
+  ) THEN
+    RAISE EXCEPTION
+      'whatsapp_config_secrets must reject non-GCM UAZAPI token values';
+  END IF;
+
+  IF NOT (
+    SELECT relrowsecurity
+    FROM pg_class
+    WHERE oid = 'public.whatsapp_config_secrets'::regclass
+  ) THEN
+    RAISE EXCEPTION
+      'whatsapp_config_secrets must have row-level security enabled';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'whatsapp_config_secrets'
+  ) THEN
+    RAISE EXCEPTION
+      'whatsapp_config_secrets must not expose credentials through browser policies';
+  END IF;
+
   RAISE NOTICE 'schema verification passed';
 END
 $$;
