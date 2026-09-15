@@ -317,6 +317,27 @@
       "resumed": "AI가 재개되었습니다.",
       "updateError": "AI 어시스턴트를 업데이트하지 못했습니다.",
       "networkError": "서버에 연결할 수 없습니다."
+    },
+    "channelTabs": {
+      "whatsapp": "WhatsApp",
+      "instagram": "인스타그램"
+    },
+    "instagram": {
+      "loading": "대화 불러오는 중…",
+      "emptyList": "아직 인스타그램 대화가 없습니다",
+      "noContactName": "이름 없음",
+      "noMessages": "아직 메시지가 없습니다",
+      "selectConversation": "대화를 선택하세요",
+      "windowClosed": "답장 가능한 24시간이 지났습니다. 고객의 새 메시지를 기다려 주세요.",
+      "windowClosedPlaceholder": "답장하려면 새 메시지를 기다리는 중…",
+      "placeholder": "메시지를 입력하세요…",
+      "attach": "첨부",
+      "sendError": "메시지를 보낼 수 없습니다",
+      "fileTooLarge": "파일이 너무 큽니다",
+      "attachment": "첨부파일",
+      "storyMention": "스토리 멘션",
+      "sharedPost": "게시물을 공유했습니다",
+      "unsupported": "지원되지 않는 메시지"
     }
   },
   "Contacts": {
@@ -1659,6 +1680,28 @@
       "wabaNotSubscribed": "WhatsApp 비즈니스 계정이 이 앱에 구독되어 있지 않아 Meta가 수신 웹훅을 전달하지 않습니다. 액세스 토큰을 다시 입력하고 저장해 구독하세요.",
       "webhookUnavailable": "메시지를 수신할 수 없습니다",
       "webhookSecretMissing": "서버의 Meta 앱 시크릿이 없거나 예제 값으로 설정되어 있습니다. Meta for Developers → 앱 설정 → 기본의 앱 시크릿으로 .env.local 또는 호스팅 설정의 META_APP_SECRET을 설정하세요. 인증 토큰 및 액세스 토큰과 다른 값입니다. 서버를 다시 시작하고 연결을 테스트하세요."
+    },
+    "instagram": {
+      "title": "인스타그램",
+      "description": "페이스북 페이지에 연결된 인스타그램 프로페셔널 계정을 연결하면 받은편지함에서 다이렉트 메시지를 받고 답장할 수 있습니다.",
+      "statusConnected": "연결됨",
+      "statusDisconnected": "연결 안 됨",
+      "pageId": "페이스북 페이지 ID",
+      "igUserId": "인스타그램 사용자 ID",
+      "igUsername": "인스타그램 사용자명 (선택)",
+      "pageAccessToken": "페이지 액세스 토큰",
+      "tokenPlaceholderConnected": "현재 토큰을 유지하려면 비워 두세요",
+      "save": "설정 저장",
+      "disconnect": "연결 해제",
+      "loadError": "인스타그램 설정을 불러올 수 없습니다",
+      "saveError": "설정을 저장할 수 없습니다",
+      "saveSuccess": "인스타그램 설정이 저장되었습니다",
+      "disconnectError": "인스타그램 연결을 해제할 수 없습니다",
+      "disconnectSuccess": "인스타그램 연결이 해제되었습니다",
+      "requiredFields": "페이지 ID, 인스타그램 사용자 ID, 페이지 액세스 토큰은 필수입니다",
+      "webhookSetupTitle": "Meta 앱에서 웹훅 설정을 완료하세요",
+      "webhookUrlLabel": "콜백 URL:",
+      "verifyTokenLabel": "확인 토큰:"
     },
     "sections": {
       "overview": "개요",

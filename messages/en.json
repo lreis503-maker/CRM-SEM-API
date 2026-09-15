@@ -317,6 +317,27 @@
       "resumed": "AI resumed.",
       "updateError": "Couldn’t update the AI assistant.",
       "networkError": "Couldn’t reach the server."
+    },
+    "channelTabs": {
+      "whatsapp": "WhatsApp",
+      "instagram": "Instagram"
+    },
+    "instagram": {
+      "loading": "Loading conversations…",
+      "emptyList": "No Instagram conversations yet",
+      "noContactName": "No name",
+      "noMessages": "No messages yet",
+      "selectConversation": "Select a conversation",
+      "windowClosed": "The 24h window to reply has expired. Wait for a new message from the customer.",
+      "windowClosedPlaceholder": "Waiting for a new message to reply…",
+      "placeholder": "Type a message…",
+      "attach": "Attach",
+      "sendError": "Could not send the message",
+      "fileTooLarge": "The file is too large",
+      "attachment": "Attachment",
+      "storyMention": "Story mention",
+      "sharedPost": "Shared a post",
+      "unsupported": "Unsupported message"
     }
   },
   "Contacts": {
@@ -1659,6 +1680,28 @@
       "wabaNotSubscribed": "The WhatsApp Business Account is not subscribed to this app, so Meta will not deliver inbound webhooks. Re-enter the access token and save again to subscribe it.",
       "webhookUnavailable": "Incoming messages are unavailable",
       "webhookSecretMissing": "The server is missing the Meta App Secret or is using the example value. Set META_APP_SECRET in .env.local or your hosting settings to the secret in Meta for Developers → App settings → Basic. This secret is different from the verify token and access token. Restart the server and test the connection."
+    },
+    "instagram": {
+      "title": "Instagram",
+      "description": "Connect an Instagram Professional account linked to a Facebook Page to receive and reply to Direct Messages from the inbox.",
+      "statusConnected": "Connected",
+      "statusDisconnected": "Not connected",
+      "pageId": "Facebook Page ID",
+      "igUserId": "Instagram User ID",
+      "igUsername": "Instagram username (optional)",
+      "pageAccessToken": "Page access token",
+      "tokenPlaceholderConnected": "Leave blank to keep the current token",
+      "save": "Save configuration",
+      "disconnect": "Disconnect",
+      "loadError": "Could not load the Instagram configuration",
+      "saveError": "Could not save the configuration",
+      "saveSuccess": "Instagram configuration saved",
+      "disconnectError": "Could not disconnect Instagram",
+      "disconnectSuccess": "Instagram disconnected",
+      "requiredFields": "Page ID, Instagram User ID and Page access token are required",
+      "webhookSetupTitle": "Finish the webhook setup in your Meta App",
+      "webhookUrlLabel": "Callback URL:",
+      "verifyTokenLabel": "Verify token:"
     },
     "sections": {
       "overview": "Overview",
