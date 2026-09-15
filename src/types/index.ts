@@ -130,6 +130,10 @@ export interface Contact {
   email?: string;
   company?: string;
   avatar_url?: string;
+  /** True when this row is a WhatsApp group rather than a person. A
+   *  group has no number of its own; it is keyed by its JID in
+   *  `whatsapp_contact_identities`. Migration 045. */
+  is_group?: boolean;
   created_at: string;
   updated_at: string;
   /** Hydrated by queries that embed `contact_tags(tags(*))` (e.g. the
@@ -289,6 +293,18 @@ export interface Message {
   error_code?: number | null;
   error_title?: string | null;
   error_details?: string | null;
+  /**
+   * Who spoke, in a group thread where the conversation belongs to the
+   * group rather than to one person. Null in a one-to-one thread, where
+   * the sender is the conversation's contact. Migration 045.
+   */
+  author_name?: string | null;
+  /**
+   * True when the row was backfilled from the provider's history rather
+   * than delivered live. An imported row never triggered an automation,
+   * an AI reply or an outbound webhook. Migration 045.
+   */
+  imported?: boolean;
 }
 
 export type ReactionActor = 'customer' | 'agent';

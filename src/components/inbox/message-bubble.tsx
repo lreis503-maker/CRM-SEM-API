@@ -270,6 +270,15 @@ export function MessageBubble({
             : "rounded-bl-md bg-muted text-foreground",
         )}
       >
+        {/* Only a group message carries an author: there the conversation
+            belongs to the group and every participant writes into it, so
+            without this the thread reads as a single voice. A one-to-one
+            message leaves the column null and shows nothing. */}
+        {!isAgent && message.author_name && (
+          <p className="text-primary mb-0.5 text-xs font-semibold">
+            {message.author_name}
+          </p>
+        )}
         {reply && (
           <ReplyQuote
             authorLabel={reply.authorLabel}
