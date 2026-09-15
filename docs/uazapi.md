@@ -118,8 +118,24 @@ O bloqueio também vale no servidor: chamar essas APIs direto responde
 HTTP 409 com `{"error":"provider_not_supported", ...}`. A interface
 desativada não é a proteção, é só o aviso.
 
-Não entram nesta versão: grupos, canais, menus, botões, listas, contatos,
-pagamentos, campanhas da UAZAPI e sincronização de histórico.
+Não entram nesta versão: canais e newsletters, menus, botões, listas,
+contatos, pagamentos e campanhas da UAZAPI.
+
+### Grupos e mensagens enviadas pelo celular
+
+Chegam e ficam visíveis na Caixa de entrada:
+
+- **Grupos.** A conversa pertence ao grupo, não a quem falou. O grupo vira
+  um contato com o nome do grupo e sem telefone, e cada mensagem guarda o
+  nome de quem escreveu, para a thread não parecer uma voz só.
+- **Mensagens digitadas no próprio celular.** Aparecem como mensagem da
+  empresa (`agent`), na mesma thread do cliente. Não contam como não
+  lidas nem acionam automações, IA ou webhooks de saída — quem respondeu
+  foi uma pessoa, do lado de cá.
+
+O que o CRM envia pela API continua sendo filtrado no provedor
+(`wasSentByApi`): já está gravado no envio, e deixar uma automação ver a
+própria saída é como um robô acaba respondendo a si mesmo.
 
 ### Janela de 24 horas
 
@@ -188,9 +204,9 @@ autenticados (`/api/automations/cron` e `/api/flows/cron`) e logo após uma
 gravação de quarentena. Assim as linhas somem mesmo que a conta pare de
 receber webhooks.
 
-Eventos esperados que o CRM ignora de propósito — mensagem enviada pela
-própria conta, grupo, status `Queued` — são apenas confirmados, sem gerar
-linha de quarentena.
+Eventos esperados que o CRM ignora de propósito — mensagem enviada por
+este CRM pela API, post de canal/newsletter, status `Queued` — são apenas
+confirmados, sem gerar linha de quarentena.
 
 ---
 

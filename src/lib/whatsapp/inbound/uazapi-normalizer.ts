@@ -16,6 +16,7 @@
  */
 
 import type {
+  NormalizedChat,
   NormalizedConnectionUpdate,
   NormalizedContent,
   NormalizedInboundEvent,
@@ -25,13 +26,14 @@ import type {
 } from './types';
 
 export type UazapiIgnoreReason =
-  'from_me' | 'sent_by_api' | 'group' | 'not_direct_chat' | 'untracked_status';
+  'sent_by_api' | 'not_a_chat' | 'untracked_status';
 
 export type UazapiQuarantineReason =
   | 'body_not_an_object'
   | 'unknown_event'
   | 'missing_data'
   | 'missing_message_id'
+  | 'missing_chat_id'
   | 'missing_sender_identity'
   | 'unknown_message_type'
   | 'unknown_connection_state';
@@ -186,13 +188,38 @@ function isGroupChat(chatId: string | null): boolean {
   return chatId !== null && chatId.endsWith('@g.us');
 }
 
-function isDirectChat(chatId: string | null): boolean {
+/**
+ * Threads the CRM stores: a person, or a group. A newsletter or channel
+ * is neither — it is a broadcast feed with no one to reply to, and it is
+ * acknowledged without being stored.
+ */
+function isStorableChat(chatId: string | null): boolean {
   if (chatId === null) return true;
-  return chatId.endsWith('@s.whatsapp.net') || chatId.endsWith('@lid');
+  return (
+    chatId.endsWith('@s.whatsapp.net') ||
+    chatId.endsWith('@lid') ||
+    chatId.endsWith('@g.us')
+  );
+}
+
+function normalizeChat(
+  data: Record<string, unknown>,
+  chatId: string | null,
+  isGroup: boolean
+): NormalizedChat {
+  return {
+    externalId: chatId,
+    // In a one-to-one thread the chat id is the other party's JID, which
+    // is the only place their number appears on a message we sent.
+    phone: isGroup ? '' : phoneFromJid(chatId),
+    isGroup,
+    name: isGroup ? (asText(data.groupName) ?? asText(data.chatName)) : null,
+  };
 }
 
 function normalizeSender(
-  data: Record<string, unknown>
+  data: Record<string, unknown>,
+  fromMe: boolean
 ): NormalizedSender | null {
   const senderPn = asText(data.sender_pn);
   const senderLid = asText(data.sender_lid);
@@ -212,7 +239,11 @@ function normalizeSender(
 
   if (!phone && !externalId) return null;
 
-  const profileName = asText(data.senderName) ?? asText(data.pushName);
+  const profileName =
+    asText(data.senderName) ??
+    asText(data.pushName) ??
+    // A message typed on the linked phone has no push name — it is us.
+    (fromMe ? 'Você' : null);
 
   return {
     phone,
@@ -266,22 +297,33 @@ function normalizeMessage(
   data: Record<string, unknown>,
   eventName: string | null
 ): UazapiNormalizeResult {
-  // These exclusions are configured at the provider too. They are checked
-  // again here because an automation answering our own send would loop,
-  // and group support is out of scope for this release.
-  if (data.fromMe === true) return ignored('from_me');
+  // Configured at the provider too, and checked again here: a message
+  // this CRM sent is already stored, and letting an automation see its
+  // own output is how a bot answers itself forever.
   if (data.wasSentByApi === true) return ignored('sent_by_api');
 
   const chatId = asText(data.chatid);
-  if (data.isGroup === true || isGroupChat(chatId)) return ignored('group');
-  if (!isDirectChat(chatId)) return ignored('not_direct_chat');
+  // A newsletter or channel post has nobody to reply to.
+  if (!isStorableChat(chatId)) return ignored('not_a_chat');
+
+  const isGroup = data.isGroup === true || isGroupChat(chatId);
+  // A group thread is keyed by its JID and has no number of its own, so
+  // without a chat id there is nothing to key it by. Filing it under
+  // whoever happened to speak would scatter one group across a contact
+  // per member.
+  if (isGroup && chatId === null) {
+    return quarantine('missing_chat_id', eventName);
+  }
+  // Typed on the linked phone rather than received. Stored as the
+  // business's own reply, never treated as something to react to.
+  const fromMe = data.fromMe === true;
 
   const messageId = asText(data.messageid) ?? asText(data.id);
   if (messageId === null) {
     return quarantine('missing_message_id', eventName);
   }
 
-  const sender = normalizeSender(data);
+  const sender = normalizeSender(data, fromMe);
   if (sender === null) {
     return quarantine('missing_sender_identity', eventName);
   }
@@ -297,9 +339,10 @@ function normalizeMessage(
     provider: 'uazapi',
     externalMessageId: messageId,
     occurredAt: timestampToIso(data.messageTimestamp),
-    fromMe: false,
-    isGroup: false,
+    fromMe,
+    isGroup,
     sender,
+    chat: normalizeChat(data, chatId, isGroup),
     content: normalizeContent(data, messageId, type),
     replyToExternalId: asText(data.quoted),
   };

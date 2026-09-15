@@ -135,7 +135,10 @@ describe('beginUazapiConnection', () => {
       enabled: true,
       url: 'https://crm.example.com/api/whatsapp/webhook/uazapi/plain-webhook-secret',
       events: ['messages', 'messages_update', 'connection'],
-      excludeMessages: ['wasSentByApi', 'fromMeYes', 'isGroupYes'],
+      // Only this CRM's own sends are filtered out. Group traffic and
+      // messages typed on the linked phone have to arrive for the inbox
+      // to show a salesperson the whole thread.
+      excludeMessages: ['wasSentByApi'],
       addUrlEvents: false,
       addUrlTypesMessages: false,
     });

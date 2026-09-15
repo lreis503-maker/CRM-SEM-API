@@ -251,9 +251,26 @@ describe('UAZAPI webhook — recognized events', () => {
     expect(mocks.processStatusUpdate).not.toHaveBeenCalled();
   });
 
-  it('acknowledges an ignored message without storing anything', async () => {
+  it('stores a message typed on the linked phone', async () => {
     const response = await POST(
       request({ ...TEXT_EVENT, data: { ...TEXT_EVENT.data, fromMe: true } }),
+      context(SECRET)
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.processInboundMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: expect.objectContaining({ fromMe: true }),
+      })
+    );
+  });
+
+  it('acknowledges our own API send without storing it twice', async () => {
+    const response = await POST(
+      request({
+        ...TEXT_EVENT,
+        data: { ...TEXT_EVENT.data, wasSentByApi: true },
+      }),
       context(SECRET)
     );
 

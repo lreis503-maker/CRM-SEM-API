@@ -32,6 +32,58 @@ import type {
   NormalizedSender,
 } from './types';
 
+/**
+ * Who the conversation belongs to, which is not always who sent the
+ * message:
+ *
+ * - a group thread belongs to the group, and every participant writes
+ *   into it;
+ * - a message the business typed on its own phone was sent by us, so the
+ *   thread is the other party, named only by the chat.
+ */
+function threadSubject(event: NormalizedInboundMessage): {
+  sender: NormalizedSender;
+  isGroup: boolean;
+} {
+  const { chat, sender } = event;
+
+  if (chat.isGroup) {
+    const groupId = chat.externalId ?? '';
+    return {
+      isGroup: true,
+      sender: {
+        phone: '',
+        externalId: groupId,
+        externalIdKind: 'jid',
+        parentExternalId: null,
+        profileName: chat.name,
+        displayName: chat.name ?? groupId,
+        username: null,
+      },
+    };
+  }
+
+  if (event.fromMe) {
+    const chatId = chat.externalId ?? '';
+    return {
+      isGroup: false,
+      sender: {
+        phone: chat.phone,
+        externalId: chatId || null,
+        externalIdKind: chatId ? 'jid' : null,
+        parentExternalId: null,
+        // The chat carries no profile name for the other party, and
+        // guessing one from our own message would rename their contact.
+        profileName: null,
+        displayName: chat.phone || chatId,
+        username: null,
+      },
+    };
+  }
+
+  return { isGroup: false, sender };
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ContactRow = any;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -168,7 +220,8 @@ async function findOrCreateContact(
   accountId: string,
   configOwnerUserId: string,
   provider: WhatsAppProvider,
-  sender: NormalizedSender
+  sender: NormalizedSender,
+  isGroup = false
 ): Promise<{ contact: ContactRow; wasCreated: boolean } | null> {
   const waUserId = bsuidOf(sender);
   const identity = externalIdentityOf(provider, sender);
@@ -186,7 +239,7 @@ async function findOrCreateContact(
   // small candidate set. The same helper backs the manual contact form and
   // CSV import, so all three paths agree on what "same number" means
   // (issue #212).
-  if (!existingContact && sender.phone) {
+  if (!existingContact && sender.phone && !isGroup) {
     existingContact = await findExistingContact(db, accountId, sender.phone);
   }
 
@@ -253,6 +306,7 @@ async function findOrCreateContact(
       user_id: configOwnerUserId,
       phone: sender.phone,
       name: sender.displayName,
+      is_group: isGroup,
       wa_user_id: waUserId,
       wa_parent_user_id: sender.parentExternalId,
       wa_username: sender.username,
@@ -362,6 +416,8 @@ export async function resolveInboundParticipants(input: {
   configOwnerUserId: string;
   provider: WhatsAppProvider;
   sender: NormalizedSender;
+  /** True when the subject is a group rather than a person. */
+  isGroup?: boolean;
 }): Promise<InboundParticipants | null> {
   const { db, accountId, configOwnerUserId, provider, sender } = input;
 
@@ -370,7 +426,8 @@ export async function resolveInboundParticipants(input: {
     accountId,
     configOwnerUserId,
     provider,
-    sender
+    sender,
+    input.isGroup ?? false
   );
   if (!contactOutcome) return null;
 
@@ -469,6 +526,13 @@ export interface ProcessInboundMessageInput {
   resolveMedia: InboundMediaResolver;
   /** Pre-resolved participants, when the caller already looked them up. */
   participants?: InboundParticipants;
+  /**
+   * True when backfilling history. An imported message is a record of
+   * something that already happened: it is stored and shown, but it
+   * never bumps unread, advances a flow, fires an automation, triggers
+   * an AI reply, or reaches an outbound webhook subscriber.
+   */
+  imported?: boolean;
 }
 
 export async function processInboundMessage(
@@ -476,6 +540,7 @@ export async function processInboundMessage(
 ): Promise<void> {
   const { db, event, accountId, configOwnerUserId, resolveMedia } = input;
 
+  const subject = threadSubject(event);
   const participants =
     input.participants ??
     (await resolveInboundParticipants({
@@ -483,7 +548,8 @@ export async function processInboundMessage(
       accountId,
       configOwnerUserId,
       provider: event.provider,
-      sender: event.sender,
+      sender: subject.sender,
+      isGroup: subject.isGroup,
     }));
   if (!participants) return;
 
@@ -549,7 +615,13 @@ export async function processInboundMessage(
       {
         conversation_id: conversation.id,
         provider: event.provider,
-        sender_type: 'customer',
+        // A message typed on the linked phone is the business speaking,
+        // not the customer, and the inbox must not read it as a reply
+        // waiting to be answered.
+        sender_type: event.fromMe ? 'agent' : 'customer',
+        // Only meaningful in a group, where the thread has many voices.
+        author_name: event.isGroup ? event.sender.displayName : null,
+        imported: input.imported ?? false,
         content_type: content.type,
         content_text: contentText,
         media_url: mediaUrl,
@@ -585,19 +657,49 @@ export async function processInboundMessage(
     return;
   }
 
-  // The unread bump is done DB-side (migration 037's
-  // bump_conversation_on_inbound) rather than as a read-modify-write:
-  // two inbound messages for the same conversation can process
-  // concurrently, and computing `snapshot + 1` in the app let both reads
-  // see the same value and write the same increment, losing one (#369).
-  const { error: convError } = await db.rpc('bump_conversation_on_inbound', {
-    p_conversation_id: conversation.id,
-    p_last_message_text: contentText || `[${content.type}]`,
-  });
+  // Only a message from the customer, arriving live, is something to
+  // react to. Our own message is the business speaking; an imported one
+  // already happened, possibly months ago. Both are stored and shown,
+  // and neither raises unread, runs automations, wakes the AI, or
+  // reaches a webhook subscriber — doing that on a backfill would send
+  // real people a burst of messages about conversations long finished.
+  const isActionable = !event.fromMe && input.imported !== true;
 
-  if (convError) {
-    console.error('Error updating conversation:', convError);
+  const preview = contentText || `[${content.type}]`;
+
+  if (isActionable) {
+    // The unread bump is done DB-side (migration 037's
+    // bump_conversation_on_inbound) rather than as a read-modify-write:
+    // two inbound messages for the same conversation can process
+    // concurrently, and computing `snapshot + 1` in the app let both
+    // reads see the same value and write the same increment, losing one
+    // (#369).
+    const { error: convError } = await db.rpc('bump_conversation_on_inbound', {
+      p_conversation_id: conversation.id,
+      p_last_message_text: preview,
+    });
+
+    if (convError) {
+      console.error('Error updating conversation:', convError);
+    }
+  } else if (input.imported !== true) {
+    // Our own live message still moves the thread to the top of the
+    // list and updates its preview; it just does not mark it unread.
+    const { error: convError } = await db
+      .from('conversations')
+      .update({
+        last_message_text: preview,
+        last_message_at: event.occurredAt,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', conversation.id);
+
+    if (convError) {
+      console.error('Error updating conversation:', convError);
+    }
   }
+
+  if (!isActionable) return;
 
   // A customer writing again re-opens the thread (issue #409). Kept as a
   // separate statement so the write can be gated on the row's CURRENT

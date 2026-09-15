@@ -245,6 +245,14 @@ export function normalizeMetaMessage(
     fromMe: false,
     isGroup: false,
     sender,
+    // Meta's messages webhook only delivers inbound one-to-one messages,
+    // so the thread is always the sender.
+    chat: {
+      externalId: sender.externalId,
+      phone: sender.phone,
+      isGroup: false,
+      name: null,
+    },
     content: normalizeContent(message),
     replyToExternalId: message.context?.id ?? null,
   };

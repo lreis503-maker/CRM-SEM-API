@@ -45,15 +45,15 @@ export const UAZAPI_QR_TTL_SECONDS = 120;
 const WEBHOOK_EVENTS = ['messages', 'messages_update', 'connection'] as const;
 
 /**
- * Applied at the provider as well as in the normalizer. Own messages and
- * groups are out of scope for v1, and echoing API sends back would make
- * automations answer themselves.
+ * Only messages this CRM itself sent are filtered out. They are already
+ * stored at send time, and letting an automation see its own output is
+ * how a bot ends up answering itself forever.
+ *
+ * Group traffic and messages typed on the linked phone DO arrive: a
+ * salesperson needs to see the whole thread, including what a colleague
+ * replied from their handset. The processor decides what each one means.
  */
-const WEBHOOK_EXCLUDED_MESSAGES = [
-  'wasSentByApi',
-  'fromMeYes',
-  'isGroupYes',
-] as const;
+const WEBHOOK_EXCLUDED_MESSAGES = ['wasSentByApi'] as const;
 
 /** The public connection state. Contains no credential of any kind. */
 export interface UazapiConnectionView {

@@ -224,6 +224,19 @@ describe('normalizeUazapiWebhook — sender identity', () => {
     expect(event.sender.phone).toBe('5511999999999');
   });
 
+  it('quarantines a group message that names no chat', () => {
+    // A group thread is keyed by its JID and has no number of its own.
+    // Without the chat id there is nothing to key it by, and filing it
+    // under whoever spoke would scatter the group across its members.
+    const data = textData({ isGroup: true });
+    delete (data as Record<string, unknown>).chatid;
+
+    expect(normalizeUazapiWebhook(messagesEvent(data))).toMatchObject({
+      outcome: 'quarantine',
+      reasonCode: 'missing_chat_id',
+    });
+  });
+
   it('quarantines a message with no identity at all', () => {
     const data = textData();
     for (const key of ['sender', 'sender_pn', 'sender_lid', 'chatid']) {
@@ -237,37 +250,65 @@ describe('normalizeUazapiWebhook — sender identity', () => {
   });
 });
 
-describe('normalizeUazapiWebhook — messages we must not act on', () => {
-  it('ignores our own outbound echo', () => {
-    expect(
+describe('normalizeUazapiWebhook — what a message means', () => {
+  it('keeps a message typed on the linked phone, flagged as ours', () => {
+    const event = expectMessage(
       normalizeUazapiWebhook(messagesEvent(textData({ fromMe: true })))
-    ).toEqual({ outcome: 'ignored', reason: 'from_me' });
+    );
+
+    // Stored so the thread reads completely, and flagged so the processor
+    // files it as the business speaking rather than as a customer reply
+    // waiting to be answered.
+    expect(event.fromMe).toBe(true);
+    expect(event.chat).toMatchObject({
+      phone: '5511999999999',
+      isGroup: false,
+    });
   });
 
-  it('ignores an API-sent message even when the filter let it through', () => {
+  it('ignores an API-sent message, which is already stored', () => {
     expect(
       normalizeUazapiWebhook(messagesEvent(textData({ wasSentByApi: true })))
     ).toEqual({ outcome: 'ignored', reason: 'sent_by_api' });
   });
 
-  it('ignores a group message by flag and by chat id', () => {
-    expect(
+  it('recognizes a group by flag and by chat id', () => {
+    const byFlag = expectMessage(
       normalizeUazapiWebhook(messagesEvent(textData({ isGroup: true })))
-    ).toEqual({ outcome: 'ignored', reason: 'group' });
+    );
+    expect(byFlag.isGroup).toBe(true);
 
-    expect(
+    const byChatId = expectMessage(
       normalizeUazapiWebhook(
-        messagesEvent(textData({ isGroup: false, chatid: '12345-67890@g.us' }))
+        messagesEvent(
+          textData({
+            isGroup: false,
+            chatid: '12345-67890@g.us',
+            groupName: 'Vendas SP',
+          })
+        )
       )
-    ).toEqual({ outcome: 'ignored', reason: 'group' });
+    );
+
+    expect(byChatId.isGroup).toBe(true);
+    expect(byChatId.chat).toEqual({
+      externalId: '12345-67890@g.us',
+      // A group has no number of its own; the thread is keyed by its JID.
+      phone: '',
+      isGroup: true,
+      name: 'Vendas SP',
+    });
+    // The participant who spoke stays on the sender, so one thread can
+    // carry many voices.
+    expect(byChatId.sender.phone).toBe('5511999999999');
   });
 
-  it('ignores a newsletter post', () => {
+  it('ignores a newsletter post, which has nobody to reply to', () => {
     expect(
       normalizeUazapiWebhook(
         messagesEvent(textData({ chatid: '1203@newsletter' }))
       )
-    ).toEqual({ outcome: 'ignored', reason: 'not_direct_chat' });
+    ).toEqual({ outcome: 'ignored', reason: 'not_a_chat' });
   });
 });
 

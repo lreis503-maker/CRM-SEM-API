@@ -68,6 +68,32 @@ export type NormalizedContent =
   | { type: 'location'; text: string }
   | { type: 'interactive'; text: string; replyId: string | null };
 
+/**
+ * The thread a message belongs to.
+ *
+ * In a one-to-one chat this is the sender, so the CRM keys the
+ * conversation off the contact as it always has. In a group the thread
+ * belongs to the group and the sender is one participant among many —
+ * keying off the sender there would scatter one conversation across a
+ * contact per person.
+ */
+export interface NormalizedChat {
+  /**
+   * The thread's own identifier: the group JID, or the other party's JID
+   * in a one-to-one chat. Null when the provider did not name it.
+   *
+   * This matters most for a message the business typed on its own phone:
+   * there the sender is us, and only the chat says who the thread is
+   * with.
+   */
+  externalId: string | null;
+  /** Digits-only phone of the other party, or '' when there is none. */
+  phone: string;
+  isGroup: boolean;
+  /** Group subject, when the provider supplied one. */
+  name: string | null;
+}
+
 export interface NormalizedInboundMessage {
   kind: 'message';
   provider: WhatsAppProvider;
@@ -77,6 +103,7 @@ export interface NormalizedInboundMessage {
   fromMe: boolean;
   isGroup: boolean;
   sender: NormalizedSender;
+  chat: NormalizedChat;
   content: NormalizedContent;
   /** The provider id of the message being replied to, when quoting. */
   replyToExternalId: string | null;
