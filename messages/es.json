@@ -330,6 +330,27 @@
       "resumed": "IA reanudada.",
       "updateError": "No se pudo actualizar el asistente de IA.",
       "networkError": "No se pudo conectar con el servidor."
+    },
+    "channelTabs": {
+      "whatsapp": "WhatsApp",
+      "instagram": "Instagram"
+    },
+    "instagram": {
+      "loading": "Cargando conversaciones…",
+      "emptyList": "Aún no hay conversaciones de Instagram",
+      "noContactName": "Sin nombre",
+      "noMessages": "Aún no hay mensajes",
+      "selectConversation": "Selecciona una conversación",
+      "windowClosed": "La ventana de 24h para responder expiró. Espera un nuevo mensaje del cliente.",
+      "windowClosedPlaceholder": "Esperando un nuevo mensaje para responder…",
+      "placeholder": "Escribe un mensaje…",
+      "attach": "Adjuntar",
+      "sendError": "No se pudo enviar el mensaje",
+      "fileTooLarge": "El archivo es demasiado grande",
+      "attachment": "Adjunto",
+      "storyMention": "Mención en historia",
+      "sharedPost": "Compartió una publicación",
+      "unsupported": "Mensaje no compatible"
     }
   },
   "Contacts": {
@@ -1764,12 +1785,35 @@
         "resynced": "Configuración sincronizada."
       }
     },
+    "instagram": {
+      "title": "Instagram",
+      "description": "Conecta una cuenta de Instagram Profesional vinculada a una Página de Facebook para recibir y responder Direct desde la bandeja de entrada.",
+      "statusConnected": "Conectado",
+      "statusDisconnected": "No conectado",
+      "pageId": "ID de la Página de Facebook",
+      "igUserId": "ID de usuario de Instagram",
+      "igUsername": "Usuario de Instagram (opcional)",
+      "pageAccessToken": "Token de acceso de la Página",
+      "tokenPlaceholderConnected": "Deja en blanco para mantener el token actual",
+      "save": "Guardar configuración",
+      "disconnect": "Desconectar",
+      "loadError": "No se pudo cargar la configuración de Instagram",
+      "saveError": "No se pudo guardar la configuración",
+      "saveSuccess": "Configuración de Instagram guardada",
+      "disconnectError": "No se pudo desconectar Instagram",
+      "disconnectSuccess": "Instagram desconectado",
+      "requiredFields": "El ID de la Página, el ID de usuario de Instagram y el token de acceso son obligatorios",
+      "webhookSetupTitle": "Completa la configuración del webhook en tu Meta App",
+      "webhookUrlLabel": "URL de callback:",
+      "verifyTokenLabel": "Token de verificación:"
+    },
     "sections": {
       "overview": "Resumen",
       "profile": "Tu perfil",
       "security": "Acceso y seguridad",
       "appearance": "Apariencia",
       "whatsapp": "WhatsApp",
+      "instagram": "Instagram",
       "templates": "Plantillas",
       "quick-replies": "Respuestas rápidas",
       "fields": "Campos y etiquetas",

@@ -14,6 +14,7 @@ import { ProfileForm } from '@/components/settings/profile-form';
 import { SecurityPanel } from '@/components/settings/security-panel';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
+import { InstagramConfigPanel } from '@/components/settings/instagram-config';
 import { TemplateManager } from '@/components/settings/template-manager';
 import { QuickRepliesManager } from '@/components/settings/quick-replies-manager';
 import { FieldsAndTagsPanel } from '@/components/settings/fields-and-tags-panel';
@@ -91,6 +92,7 @@ function SettingsPageInner() {
       ) : null}
       <WhatsAppConfig />
     </>,
+    instagram: <InstagramConfigPanel />,
     templates: supports('templates') ? <TemplateManager /> : (
       <div role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
         {templateDisabledReason}

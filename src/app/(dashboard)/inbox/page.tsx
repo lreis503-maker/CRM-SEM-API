@@ -16,6 +16,7 @@ import { ContactSidebar } from "@/components/inbox/contact-sidebar";
 import { toast } from "sonner";
 import { WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { InstagramInboxPage } from "./instagram-inbox";
 
 // Remembers the agent's show/hide choice for the desktop contact panel
 // across reloads and sessions (device-scoped, like the theme prefs).
@@ -24,11 +25,38 @@ const CONTACT_PANEL_STORAGE_KEY = "wacrm:inbox:contact-panel-open";
 // `useSearchParams` (the `?c=<id>` deep link below) requires a Suspense
 // boundary or the production build bails to CSR and errors out. Thin
 // wrapper supplies it; the inner component holds all the inbox state.
+type ChannelTab = "whatsapp" | "instagram";
+
 export default function InboxPage() {
+  const [channel, setChannel] = useState<ChannelTab>("whatsapp");
+
   return (
-    <Suspense fallback={null}>
-      <InboxPageInner />
-    </Suspense>
+    <div className="-m-4 flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden sm:-m-6">
+      <div className="flex shrink-0 gap-1 border-b border-border bg-card px-4 pt-2">
+        {(["whatsapp", "instagram"] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setChannel(tab)}
+            className={cn(
+              "rounded-t-lg px-4 py-2 text-sm font-medium transition-colors",
+              channel === tab
+                ? "border-b-2 border-primary text-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {tab === "whatsapp" ? "WhatsApp" : "Instagram"}
+          </button>
+        ))}
+      </div>
+      {channel === "whatsapp" ? (
+        <Suspense fallback={null}>
+          <InboxPageInner />
+        </Suspense>
+      ) : (
+        <InstagramInboxPage />
+      )}
+    </div>
   );
 }
 
@@ -562,7 +590,7 @@ function InboxPageInner() {
   const hasActiveConv = !!activeConversation;
 
   return (
-    <div className="-m-4 flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden sm:-m-6">
+    <>
       {/* WhatsApp connection banner — in the flex column, not absolute,
           so it pushes the panels down instead of overlapping them. */}
       {whatsappConnected === false && (
@@ -636,6 +664,6 @@ function InboxPageInner() {
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }
