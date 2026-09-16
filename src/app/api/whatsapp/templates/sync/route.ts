@@ -7,6 +7,11 @@ import {
 } from '@/lib/auth/account'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { normalizeStatus } from '@/lib/whatsapp/template-status-normalize'
+import {
+  isProviderNotSupportedError,
+  providerCapabilityErrorResponse,
+  requireAccountCapability,
+} from '@/lib/whatsapp/providers/account-capability-guard'
 import type { TemplateButton, TemplateSampleValues } from '@/types'
 
 /**
@@ -134,6 +139,12 @@ export async function POST() {
     // insert/update RLS policies (migration 017) both require 'admin'.
     // Resolving account_id off the profile only proved membership.
     const { supabase, accountId, userId } = await requireRole('admin')
+
+    await requireAccountCapability(
+      supabase,
+      accountId,
+      'template_sync',
+    )
 
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
@@ -295,6 +306,9 @@ export async function POST() {
       truncated: pageCount >= PAGE_CAP && nextUrl !== null,
     })
   } catch (error) {
+    if (isProviderNotSupportedError(error)) {
+      return providerCapabilityErrorResponse(error)
+    }
     // Auth failures map to 401/403 rather than being folded into the
     // generic 500 below, which surfaces `error.message` as a sync failure.
     if (

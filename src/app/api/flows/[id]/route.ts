@@ -2,6 +2,21 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
+import {
+  isProviderNotSupportedError,
+  providerCapabilityErrorResponse,
+  requireAccountCapability,
+} from '@/lib/whatsapp/providers/account-capability-guard'
+
+function containsInteractiveNode(nodes: unknown): boolean {
+  return Array.isArray(nodes) && nodes.some(
+    (node) =>
+      typeof node === 'object' &&
+      node !== null &&
+      'node_type' in node &&
+      (node.node_type === 'send_buttons' || node.node_type === 'send_list'),
+  )
+}
 
 /**
  * GET   /api/flows/[id]  — fetch one flow with its nodes.
@@ -96,8 +111,9 @@ export async function PUT(
   // Writes require at least `agent` — the RLS flows_update policy demands
   // it, but this route mutates via the service-role client which bypasses
   // RLS, so the role must be enforced here (a viewer passes ownership).
+  let accountContext: Awaited<ReturnType<typeof requireRole>>
   try {
-    await requireRole('agent')
+    accountContext = await requireRole('agent')
   } catch (err) {
     return toErrorResponse(err)
   }
@@ -108,6 +124,20 @@ export async function PUT(
   const body = (await request.json().catch(() => null)) as PutBody | null
   if (!body) {
     return NextResponse.json({ error: "JSON inválido" }, { status: 400 })
+  }
+  if (containsInteractiveNode(body.nodes)) {
+    try {
+      await requireAccountCapability(
+        accountContext.supabase,
+        accountContext.accountId,
+        'interactive',
+      )
+    } catch (error) {
+      if (isProviderNotSupportedError(error)) {
+        return providerCapabilityErrorResponse(error)
+      }
+      return toErrorResponse(error)
+    }
   }
   if (body.name !== undefined && !body.name.trim()) {
     return NextResponse.json(

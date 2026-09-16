@@ -22,6 +22,48 @@ import {
   phoneNumberBelongsToWaba,
 } from '@/lib/whatsapp/waba-pairing'
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
+import { supabaseAdmin as whatsappServiceRole } from '@/lib/whatsapp/admin-client'
+import { resolveUazapiInstallation } from '@/lib/whatsapp/providers/account-capabilities'
+import {
+  createUazapiConnectionContext,
+  disconnectUazapiInstance,
+  removeUazapiConnection,
+  uazapiViewFromStoredConfig,
+  type UazapiConnectionContext,
+} from '@/lib/whatsapp/providers/uazapi-instance'
+
+/**
+ * Columns needed to answer for either provider. `provider` decides which
+ * branch runs; a row written before migration 043 has the 'meta' default.
+ */
+const CONFIG_COLUMNS =
+  'id, provider, status, phone_number_id, waba_id, access_token, connection_attempt_id, connected_phone, connected_name, connected_avatar_url, last_connection_error'
+
+/** Rows that pre-date the provider column are Meta, same as the DB default. */
+function providerOf(config: { provider?: string | null }): 'meta' | 'uazapi' {
+  return config.provider === 'uazapi' ? 'uazapi' : 'meta'
+}
+
+/**
+ * Builds the UAZAPI lifecycle context for this account, or null when the
+ * installation is not configured to talk to UAZAPI at all.
+ *
+ * Uses the service-role client on purpose: the encrypted instance token
+ * lives in `whatsapp_config_secrets`, which has no browser policies.
+ */
+function uazapiContextFor(
+  accountId: string,
+  userId: string,
+): UazapiConnectionContext | null {
+  const installation = resolveUazapiInstallation(process.env)
+  if (!installation) return null
+  return createUazapiConnectionContext({
+    db: whatsappServiceRole(),
+    accountId,
+    userId,
+    installation,
+  })
+}
 
 /**
  * Resolve the caller's account_id from their profile. Inlined here
@@ -123,7 +165,7 @@ export async function GET() {
 
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
-      .select('phone_number_id, waba_id, access_token, status')
+      .select(CONFIG_COLUMNS)
       .eq('account_id', accountId)
       .maybeSingle()
 
@@ -143,6 +185,21 @@ export async function GET() {
           message: "Nenhuma configuração do WhatsApp salva. Preencha o formulário e clique em Salvar configuração.",
         },
         { status: 200 }
+      )
+    }
+
+    // UAZAPI keeps no Meta credential to verify. Its state is the stored
+    // connection state, refreshed by /api/whatsapp/uazapi/status — so this
+    // branch answers from the row and never reaches graph.facebook.com.
+    if (providerOf(config) === 'uazapi') {
+      return NextResponse.json(
+        {
+          connected: config.status === 'connected',
+          provider: 'uazapi',
+          status: config.status,
+          connection: uazapiViewFromStoredConfig(config),
+        },
+        { status: 200 },
       )
     }
 
@@ -222,6 +279,7 @@ export async function GET() {
 
     return NextResponse.json({
       connected: true,
+      provider: 'meta',
       phone_info: phoneInfo,
       waba_subscription: wabaSubscription,
       webhook_security: { configured: hasConfiguredMetaAppSecret() },
@@ -411,11 +469,32 @@ export async function POST(request: Request) {
     // /register when the user didn't provide a PIN this time around.
     const { data: existing } = await supabase
       .from('whatsapp_config')
-      .select('id, registered_at, phone_number_id')
+      .select('id, provider, registered_at, phone_number_id')
       .eq('account_id', accountId)
       .maybeSingle()
 
+    // Switching away from UAZAPI. The Meta credentials above are already
+    // verified, so the session can end now — but the instance stays until
+    // Meta is actually live, so a failure below is still recoverable with
+    // a new QR on the same instance.
+    const switchingFromUazapi = existing != null && providerOf(existing) === 'uazapi'
+    let uazapiContext: UazapiConnectionContext | null = null
+    if (switchingFromUazapi) {
+      uazapiContext = uazapiContextFor(accountId, user.id)
+      if (!uazapiContext) {
+        return NextResponse.json(
+          {
+            error:
+              "A instalação não está configurada para gerenciar a conexão UAZAPI atual. Peça ao operador para revisar as variáveis do servidor antes de trocar de provedor.",
+          },
+          { status: 503 },
+        )
+      }
+      await disconnectUazapiInstance(uazapiContext)
+    }
+
     const sameNumber =
+      !switchingFromUazapi &&
       existing?.phone_number_id === phone_number_id &&
       existing?.registered_at != null
 
@@ -492,6 +571,27 @@ export async function POST(request: Request) {
       }
     }
 
+    // A half-live Meta connection is a fine state to save for an account
+    // that was already on Meta, but it is not worth destroying a working
+    // UAZAPI connection for. Keep the (now disconnected) UAZAPI row so the
+    // user can generate a new QR, and report why the switch stopped.
+    if (switchingFromUazapi && registrationError) {
+      return NextResponse.json(
+        {
+          error: registrationError,
+          meta: registrationMeta,
+          provider_switch: 'kept_uazapi',
+        },
+        { status: 400 },
+      )
+    }
+
+    // Meta is live. Only now is the UAZAPI instance deleted and its row
+    // (with the encrypted token) removed, leaving room for the Meta row.
+    if (switchingFromUazapi && uazapiContext) {
+      await removeUazapiConnection(uazapiContext)
+    }
+
     // Persist everything in one shot. If /register failed we still
     // store the credentials and the error so the UI can guide the
     // user through a retry.
@@ -508,7 +608,9 @@ export async function POST(request: Request) {
       updated_at: new Date().toISOString(),
     }
 
-    if (existing) {
+    // After a provider switch the old row is gone, so this is an insert
+    // even though a configuration existed a moment ago.
+    if (existing && !switchingFromUazapi) {
       const { error: updateError } = await supabase
         .from('whatsapp_config')
         .update(baseRow)
@@ -601,6 +703,30 @@ export async function DELETE() {
         { error: "Seu perfil não está vinculado a uma conta." },
         { status: 403 },
       )
+    }
+
+    const { data: existing } = await supabase
+      .from('whatsapp_config')
+      .select('id, provider')
+      .eq('account_id', accountId)
+      .maybeSingle()
+
+    // A UAZAPI row without its remote instance would leave a live WhatsApp
+    // session nobody owns, so removal goes through the lifecycle service:
+    // disconnect, delete upstream, then drop the row and its secret.
+    if (existing && providerOf(existing) === 'uazapi') {
+      const context = uazapiContextFor(accountId, user.id)
+      if (!context) {
+        return NextResponse.json(
+          {
+            error:
+              "A instalação não está configurada para gerenciar a conexão UAZAPI atual. Peça ao operador para revisar as variáveis do servidor.",
+          },
+          { status: 503 },
+        )
+      }
+      await removeUazapiConnection(context)
+      return NextResponse.json({ success: true })
     }
 
     const { error: deleteError } = await supabase

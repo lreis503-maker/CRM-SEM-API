@@ -10,7 +10,7 @@ import {
 } from "@/lib/inbox/conversations";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
-import { Search, ChevronDown, X } from "lucide-react";
+import { Search, ChevronDown, Users, X } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
@@ -459,7 +459,8 @@ function ConversationItem({
         isActive && "border-l-2 border-primary bg-muted/70"
       )}
     >
-      {/* Avatar */}
+      {/* Avatar. A group gets an icon instead of an initial: a thread
+          with many voices should not look like one more person. */}
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
         {contact?.avatar_url ? (
           <img
@@ -467,6 +468,8 @@ function ConversationItem({
             alt={displayName}
             className="h-10 w-10 rounded-full object-cover"
           />
+        ) : contact?.is_group ? (
+          <Users className="h-5 w-5 text-muted-foreground" />
         ) : (
           initials
         )}

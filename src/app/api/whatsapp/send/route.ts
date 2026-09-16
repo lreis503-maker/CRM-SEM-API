@@ -11,6 +11,10 @@ import {
   validateSendMessageParams,
   SendMessageError,
 } from '@/lib/whatsapp/send-message'
+import {
+  isProviderNotSupportedError,
+  providerCapabilityErrorResponse,
+} from '@/lib/whatsapp/providers/account-capability-guard'
 
 // The dashboard's outbound-send endpoint. It owns auth, per-user rate
 // limiting, and the two ways the UI targets a thread — an existing
@@ -173,6 +177,11 @@ export async function POST(request: Request) {
         whatsapp_message_id: result.whatsappMessageId,
       })
     } catch (err) {
+      // A Meta-only message type on a UAZAPI account answers the same
+      // stable 409 contract every other capability-gated route uses.
+      if (isProviderNotSupportedError(err)) {
+        return providerCapabilityErrorResponse(err)
+      }
       if (err instanceof SendMessageError) {
         return NextResponse.json(
           { error: err.message },

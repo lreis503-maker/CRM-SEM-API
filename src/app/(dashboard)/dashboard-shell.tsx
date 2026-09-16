@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { WhatsAppCapabilitiesProvider } from "@/hooks/use-whatsapp-capabilities";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { AccountAccessAlert } from "@/components/layout/account-access-alert";
@@ -69,7 +70,9 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
-      <DashboardShellInner>{children}</DashboardShellInner>
+      <WhatsAppCapabilitiesProvider>
+        <DashboardShellInner>{children}</DashboardShellInner>
+      </WhatsAppCapabilitiesProvider>
     </AuthProvider>
   );
 }

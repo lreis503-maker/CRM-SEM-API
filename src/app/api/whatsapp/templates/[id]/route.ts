@@ -11,6 +11,11 @@ import {
 } from '@/lib/whatsapp/template-validators'
 import { buildMetaTemplatePayload } from '@/lib/whatsapp/template-components'
 import { ensureMediaHeaderHandle } from '@/lib/whatsapp/template-header-handle'
+import {
+  isProviderNotSupportedError,
+  providerCapabilityErrorResponse,
+  requireAccountCapability,
+} from '@/lib/whatsapp/providers/account-capability-guard'
 
 /**
  * Per-template lifecycle endpoint.
@@ -78,6 +83,19 @@ export async function PATCH(
         { error: "Seu perfil não está vinculado a uma conta." },
         { status: 403 },
       )
+    }
+
+    try {
+      await requireAccountCapability(
+        supabase,
+        accountId,
+        'templates',
+      )
+    } catch (error) {
+      if (isProviderNotSupportedError(error)) {
+        return providerCapabilityErrorResponse(error)
+      }
+      throw error
     }
 
     let payload: TemplatePayload
@@ -266,6 +284,19 @@ export async function DELETE(
         { error: "Seu perfil não está vinculado a uma conta." },
         { status: 403 },
       )
+    }
+
+    try {
+      await requireAccountCapability(
+        supabase,
+        accountId,
+        'templates',
+      )
+    } catch (error) {
+      if (isProviderNotSupportedError(error)) {
+        return providerCapabilityErrorResponse(error)
+      }
+      throw error
     }
 
     const { data: existing, error: lookupErr } = await supabase

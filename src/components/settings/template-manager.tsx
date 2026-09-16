@@ -30,6 +30,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useTranslations } from 'next-intl';
+import { useWhatsAppCapabilities } from '@/hooks/use-whatsapp-capabilities';
+import { ProviderDisabledControl } from '@/components/whatsapp/provider-disabled-control';
+import { providerDisabledReason } from '@/lib/whatsapp/providers/ui-policy';
 import { Card, CardContent } from '@/components/ui/card';
 import { SettingsPanelHead } from './settings-panel-head';
 import {
@@ -131,6 +134,13 @@ function emptyButton(type: TemplateButton['type']): TemplateButton {
 
 export function TemplateManager() {
   const t = useTranslations('Settings.templates');
+  const tProvider = useTranslations('provider');
+  const { snapshot, supports } = useWhatsAppCapabilities();
+  const syncDisabledReason = providerDisabledReason(
+    snapshot,
+    'template_sync',
+    (key) => tProvider(key),
+  );
   const tCommon = useTranslations('Common');
   const supabase = createClient();
   const { user, loading: authLoading } = useAuth();
@@ -309,6 +319,7 @@ export function TemplateManager() {
   }
 
   async function handleSyncFromMeta() {
+    if (!supports('template_sync')) return;
     if (!user) return;
     setSyncing(true);
     try {
@@ -525,15 +536,24 @@ export function TemplateManager() {
         description={t('description')}
         action={
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={handleSyncFromMeta}
-              disabled={syncing}
-              title={t('syncTitle')}
-            >
-              <RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? t('syncing') : t('syncFromMeta')}
-            </Button>
+            {syncDisabledReason ? (
+              <ProviderDisabledControl reason={syncDisabledReason}>
+                <Button variant="outline" disabled title={t('syncTitle')}>
+                  <RefreshCw className="size-4" />
+                  {t('syncFromMeta')}
+                </Button>
+              </ProviderDisabledControl>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={handleSyncFromMeta}
+                disabled={syncing}
+                title={t('syncTitle')}
+              >
+                <RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? t('syncing') : t('syncFromMeta')}
+              </Button>
+            )}
             <Button onClick={openCreate}>
               <Plus className="size-4" />
               {t('newTemplate')}

@@ -51,6 +51,26 @@ describe('diagnóstico do recebimento de webhooks', () => {
     expect(result.checks.waba_subscribed_to_app).toBe(true);
   });
 
+  it('não executa o diagnóstico da Meta em uma conta UAZAPI', async () => {
+    mocks.createClient.mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: { id: 'usuario' } }, error: null }) },
+      from: (table: string) => ({
+        select() { return this },
+        eq() { return this },
+        maybeSingle: async () => ({ data: table === 'profiles'
+          ? { account_id: 'conta' }
+          : { provider: 'uazapi', status: 'connected', access_token: null, phone_number_id: null } }),
+      }),
+    })
+
+    const result = await (await GET()).json()
+
+    expect(result.provider).toBe('uazapi')
+    expect(result.live).toBe(true)
+    expect(mocks.verifyPhoneNumber).not.toHaveBeenCalled()
+    expect(mocks.getSubscribedApps).not.toHaveBeenCalled()
+  })
+
   it('não considera a inscrição em outro aplicativo como sucesso', async () => {
     mocks.getSubscribedApps.mockResolvedValue([{ whatsapp_business_api_data: { id: '654321' } }]);
     const result = await (await GET()).json();

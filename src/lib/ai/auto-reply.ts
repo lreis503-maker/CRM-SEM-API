@@ -12,6 +12,7 @@ import {
   loadAccountMetaCredentials,
 } from '@/lib/flows/meta-send'
 import { sendTypingIndicator } from '@/lib/whatsapp/meta-api'
+import { isProviderNotSupportedError } from '@/lib/whatsapp/providers/account-capability-guard'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 
 interface DispatchArgs {
@@ -237,6 +238,10 @@ async function showTypingIndicator(
       messageId: inboundMessageId,
     })
   } catch (err) {
+    // A UAZAPI account simply has no typing indicator in this release.
+    // That is expected, not a fault, so it does not get a warning on
+    // every single AI reply.
+    if (isProviderNotSupportedError(err)) return
     console.warn('[ai auto-reply] typing indicator failed (continuing):', err)
   }
 }

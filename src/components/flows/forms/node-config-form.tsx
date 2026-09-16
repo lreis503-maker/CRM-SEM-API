@@ -49,6 +49,8 @@ import { cn } from "@/lib/utils";
 import { uploadAccountMedia, MEDIA_MAX_BYTES } from "@/lib/storage/upload-media";
 import { slugify, type BuilderNode } from "../shared";
 import { NextNodeRow, NodeKeySelect, TextRow } from "./fields";
+import { useWhatsAppCapabilities } from '@/hooks/use-whatsapp-capabilities';
+import { providerDisabledReason } from '@/lib/whatsapp/providers/ui-policy';
 
 interface NodeConfigFormProps {
   node: BuilderNode;
@@ -98,26 +100,18 @@ export function NodeConfigForm({
 
     case "send_buttons":
       return (
-        <SendButtonsForm
-          cfg={cfg as SendButtonsCfg}
-          allNodes={allNodes}
-          currentKey={node.node_key}
-          onUpdateConfig={onUpdateConfig}
-          showAdvanced={showAdvanced}
-          t={t}
-        />
+        <>
+          <UnsupportedInteractiveNodeWarning />
+          <SendButtonsForm cfg={cfg as SendButtonsCfg} allNodes={allNodes} currentKey={node.node_key} onUpdateConfig={onUpdateConfig} showAdvanced={showAdvanced} t={t} />
+        </>
       );
 
     case "send_list":
       return (
-        <SendListForm
-          cfg={cfg as SendListCfg}
-          allNodes={allNodes}
-          currentKey={node.node_key}
-          onUpdateConfig={onUpdateConfig}
-          showAdvanced={showAdvanced}
-          t={t}
-        />
+        <>
+          <UnsupportedInteractiveNodeWarning />
+          <SendListForm cfg={cfg as SendListCfg} allNodes={allNodes} currentKey={node.node_key} onUpdateConfig={onUpdateConfig} showAdvanced={showAdvanced} t={t} />
+        </>
       );
 
     case "send_media":
@@ -213,6 +207,18 @@ export function NodeConfigForm({
         </p>
       );
   }
+}
+
+function UnsupportedInteractiveNodeWarning() {
+  const tProvider = useTranslations('provider');
+  const { snapshot, supports } = useWhatsAppCapabilities();
+  const reason = providerDisabledReason(snapshot, 'interactive', (key) => tProvider(key));
+  if (supports('interactive')) return null;
+  return (
+    <p role="status" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+      {reason}
+    </p>
+  );
 }
 
 // ============================================================

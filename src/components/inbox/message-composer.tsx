@@ -55,6 +55,9 @@ import {
 import { validateInteractivePayload } from "@/lib/whatsapp/interactive";
 import type { InteractiveMessagePayload, QuickReply } from "@/types";
 import { QuickReplyPicker } from "./quick-reply-picker";
+import { useWhatsAppCapabilities } from '@/hooks/use-whatsapp-capabilities';
+import { ProviderDisabledControl } from '@/components/whatsapp/provider-disabled-control';
+import { providerDisabledReason } from '@/lib/whatsapp/providers/ui-policy';
 
 /** Media content types an agent can send from the composer. */
 export type ComposerMediaKind = "image" | "video" | "document" | "audio";
@@ -142,6 +145,8 @@ export function MessageComposer({
   onClearReply,
 }: MessageComposerProps) {
   const t = useTranslations("Inbox.composer");
+  const tProvider = useTranslations('provider');
+  const { snapshot, supports } = useWhatsAppCapabilities();
 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -190,7 +195,12 @@ export function MessageComposer({
   const canSend = useCan("send-messages");
   const readOnly = !canSend;
   // Media (like free-form text) is only allowed inside the 24h window.
-  const inputsDisabled = readOnly || sessionExpired;
+  const effectiveSessionExpired = supports('meta_service_window') && sessionExpired;
+  const templatesEnabled = supports('templates');
+  const interactiveEnabled = supports('interactive');
+  const templatesDisabledReason = providerDisabledReason(snapshot, 'templates', (key) => tProvider(key));
+  const interactiveDisabledReason = providerDisabledReason(snapshot, 'interactive', (key) => tProvider(key));
+  const inputsDisabled = readOnly || effectiveSessionExpired;
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -222,7 +232,7 @@ export function MessageComposer({
 
   const handleSend = useCallback(async () => {
     const trimmed = text.trim();
-    if (!trimmed || sending || sessionExpired) return;
+    if (!trimmed || sending || effectiveSessionExpired) return;
 
     setSending(true);
     try {
@@ -234,7 +244,7 @@ export function MessageComposer({
     } finally {
       setSending(false);
     }
-  }, [text, sending, sessionExpired, onSend, replyTo?.id]);
+  }, [text, sending, effectiveSessionExpired, onSend, replyTo?.id]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -302,13 +312,15 @@ export function MessageComposer({
 
   const openInteractiveBuilder = useCallback(
     (seed?: InteractiveMessagePayload) => {
+      if (!interactiveEnabled) return;
       setInteractivePayload(seed ?? blankButtonsPayload());
       setInteractiveOpen(true);
     },
-    [],
+    [interactiveEnabled],
   );
 
   const sendInteractive = useCallback(() => {
+    if (!interactiveEnabled) return;
     const result = validateInteractivePayload(interactivePayload);
     if (!result.ok) {
       toast.error(result.error);
@@ -317,7 +329,7 @@ export function MessageComposer({
     onSendInteractive(interactivePayload, replyTo?.id);
     setInteractiveOpen(false);
     onClearReply?.();
-  }, [interactivePayload, onSendInteractive, replyTo?.id, onClearReply]);
+  }, [interactiveEnabled, interactivePayload, onSendInteractive, replyTo?.id, onClearReply]);
 
   // Persist the current builder payload as a reusable interactive snippet.
   const saveAsQuickReply = useCallback(async () => {
@@ -546,20 +558,16 @@ export function MessageComposer({
           />
         </div>
       )}
-      {sessionExpired && (
+      {effectiveSessionExpired && (
         <div className="mb-2 flex items-center justify-between rounded-lg bg-amber-500/10 px-3 py-2">
           <p className="text-xs text-amber-400">
             {t("sessionExpiredHint")}
           </p>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs text-amber-400 hover:text-amber-300"
-            onClick={onOpenTemplates}
-          >
-            <LayoutTemplate className="mr-1 h-3 w-3" />
-            {t("templates")}
-          </Button>
+          {templatesEnabled ? <Button variant="ghost" size="sm" className="h-7 text-xs text-amber-400 hover:text-amber-300" onClick={onOpenTemplates}>
+            <LayoutTemplate className="mr-1 h-3 w-3" />{t("templates")}
+          </Button> : <ProviderDisabledControl reason={templatesDisabledReason ?? tProvider('uazapiUnavailable')}>
+            <Button variant="ghost" size="sm" disabled className="h-7 text-xs text-amber-400"><LayoutTemplate className="mr-1 h-3 w-3" />{t("templates")}</Button>
+          </ProviderDisabledControl>}
         </div>
       )}
 
@@ -686,10 +694,19 @@ export function MessageComposer({
               <Plus className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="border-border bg-popover">
-              <DropdownMenuItem onClick={() => openInteractiveBuilder()}>
-                <MessageSquareDashed className="mr-2 h-4 w-4" />
-                {t("interactiveMessage")}
-              </DropdownMenuItem>
+              {interactiveEnabled ? (
+                <DropdownMenuItem onClick={() => openInteractiveBuilder()}>
+                  <MessageSquareDashed className="mr-2 h-4 w-4" />
+                  {t("interactiveMessage")}
+                </DropdownMenuItem>
+              ) : (
+                <ProviderDisabledControl reason={interactiveDisabledReason ?? tProvider('uazapiUnavailable')}>
+                  <span className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-sm text-muted-foreground">
+                    <MessageSquareDashed className="mr-2 h-4 w-4" />
+                    {t("interactiveMessage")}
+                  </span>
+                </ProviderDisabledControl>
+              )}
               <DropdownMenuItem onClick={() => setQuickReplyOpen(true)}>
                 <Zap className="mr-2 h-4 w-4" />
                 {t("quickReplies")}
@@ -697,7 +714,7 @@ export function MessageComposer({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <GatedButton
+          {templatesEnabled ? <GatedButton
             variant="ghost"
             size="sm"
             canAct={!readOnly}
@@ -707,7 +724,11 @@ export function MessageComposer({
             onClick={onOpenTemplates}
           >
             <LayoutTemplate className="h-4 w-4" />
-          </GatedButton>
+          </GatedButton> : <ProviderDisabledControl reason={templatesDisabledReason ?? tProvider('uazapiUnavailable')}>
+            <GatedButton variant="ghost" size="sm" disabled className="h-9 w-9 shrink-0 p-0 text-muted-foreground">
+              <LayoutTemplate className="h-4 w-4" />
+            </GatedButton>
+          </ProviderDisabledControl>}
 
           <GatedButton
             variant="ghost"
@@ -734,11 +755,11 @@ export function MessageComposer({
             placeholder={
               readOnly
                 ? t("readOnlyPlaceholder")
-                : sessionExpired
+                : effectiveSessionExpired
                   ? t("sessionExpiredPlaceholder")
                   : t("typeMessagePlaceholder")
             }
-            disabled={sessionExpired || readOnly}
+            disabled={effectiveSessionExpired || readOnly}
             rows={1}
             // Textarea keeps its own inline title — the GatedButton
             // wrapping pattern doesn't apply to non-button inputs.
@@ -746,7 +767,7 @@ export function MessageComposer({
             title={readOnly ? t("readOnlyTitle") : undefined}
             className={cn(
               "flex-1 resize-none rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-primary/50",
-              (sessionExpired || readOnly) && "cursor-not-allowed opacity-50"
+              (effectiveSessionExpired || readOnly) && "cursor-not-allowed opacity-50"
             )}
           />
 
@@ -754,7 +775,7 @@ export function MessageComposer({
             size="sm"
             canAct={!readOnly}
             gateReason="enviar mensagens"
-            disabled={!text.trim() || sessionExpired || sending}
+            disabled={!text.trim() || effectiveSessionExpired || sending}
             onClick={handleSend}
             className="h-9 w-9 shrink-0 bg-primary p-0 hover:bg-primary/90 disabled:opacity-40"
           >

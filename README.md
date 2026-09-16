@@ -23,6 +23,10 @@ clone-o ou crie uma cópia para executar seu próprio CRM.
 
 ## Funcionalidades incluídas
 
+- **Duas formas de conectar o WhatsApp**: a API oficial da Meta, com todos os
+  recursos, ou a **UAZAPI por QR Code**, para conversas individuais com texto e
+  mídia. Cada conta escolhe uma; o histórico permanece ao trocar. Veja
+  [docs/uazapi.md](./docs/uazapi.md).
 - **Caixa de entrada compartilhada** com a API oficial do WhatsApp Business:
   vários atendentes no mesmo número, atribuição de conversas, status e notas.
 - **Contatos, etiquetas e campos personalizados**, com importação de CSV e
@@ -163,6 +167,8 @@ em [ArnasDon/wacrm-site](https://github.com/ArnasDon/wacrm-site).
 - [Publicação na Hostinger](https://wacrm.tech/docs/deployment-hostinger)
 - [Arquitetura](https://wacrm.tech/docs/architecture)
 - [Solução de problemas](https://wacrm.tech/docs/troubleshooting)
+- [Conexão pela UAZAPI (QR Code)](./docs/uazapi.md): como habilitar no servidor,
+  conectar pelo QR, o que fica indisponível e como trocar de provedor.
 - [Problemas de conexão com o WhatsApp](./docs/whatsapp-connection-troubleshooting.md):
   significado dos erros ao salvar a configuração e códigos para informar ao suporte da Meta.
 - [Várias contas do WhatsApp Business](./docs/multi-waba.md): uso de um ou vários
@@ -174,7 +180,7 @@ em [ArnasDon/wacrm-site](https://github.com/ArnasDon/wacrm-site).
 
 - **Aplicação**: Next.js 16 com App Router, React 19, TypeScript e Tailwind v4.
 - **Dados**: Supabase com Postgres, autenticação, armazenamento e RLS.
-- **WhatsApp**: API de Nuvem oficial do WhatsApp Business da Meta.
+- **WhatsApp**: API de Nuvem oficial do WhatsApp Business da Meta, com a UAZAPI como alternativa opcional por QR Code.
 
 ## Verificações de desenvolvimento
 

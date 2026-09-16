@@ -8,6 +8,21 @@ import {
   validateStepsForActivation,
   validateTriggerForActivation,
 } from '@/lib/automations/validate'
+import {
+  isProviderNotSupportedError,
+  providerCapabilityErrorResponse,
+  requireAccountCapability,
+} from '@/lib/whatsapp/providers/account-capability-guard'
+
+function containsTemplateStep(steps: unknown): boolean {
+  return Array.isArray(steps) && steps.some(
+    (step) =>
+      typeof step === 'object' &&
+      step !== null &&
+      'step_type' in step &&
+      step.step_type === 'send_template',
+  )
+}
 
 export async function GET() {
   const supabase = await createClient()
@@ -28,8 +43,9 @@ export async function POST(request: Request) {
   // Creating an automation is a write — the RLS automations_insert policy
   // requires `agent`, but this route inserts via the service-role client
   // which bypasses RLS, so the role must be enforced here.
+  let accountContext: Awaited<ReturnType<typeof requireRole>>
   try {
-    await requireRole('agent')
+    accountContext = await requireRole('agent')
   } catch (err) {
     return toErrorResponse(err)
   }
@@ -75,6 +91,21 @@ export async function POST(request: Request) {
       effectiveTriggerType = effectiveTriggerType ?? t.trigger_type
       effectiveTriggerConfig = effectiveTriggerConfig ?? t.trigger_config
       effectiveSteps = t.steps as unknown as BuilderStepInput[]
+    }
+  }
+
+  if (containsTemplateStep(effectiveSteps)) {
+    try {
+      await requireAccountCapability(
+        accountContext.supabase,
+        accountContext.accountId,
+        'templates',
+      )
+    } catch (error) {
+      if (isProviderNotSupportedError(error)) {
+        return providerCapabilityErrorResponse(error)
+      }
+      return toErrorResponse(error)
     }
   }
 

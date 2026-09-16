@@ -1,5 +1,9 @@
 import type { AccountRole } from "@/lib/auth/roles";
 import type { InteractiveMessagePayload } from "@/lib/whatsapp/interactive";
+import type {
+  WhatsAppConnectionStatus,
+  WhatsAppProvider,
+} from "@/lib/whatsapp/providers/types";
 
 export type {
   InteractiveMessagePayload,
@@ -9,6 +13,13 @@ export type {
   InteractiveListRow,
   InteractiveListSection,
 } from "@/lib/whatsapp/interactive";
+
+export type {
+  WhatsAppCapability,
+  WhatsAppCapabilitySnapshot,
+  WhatsAppConnectionStatus,
+  WhatsAppProvider,
+} from "@/lib/whatsapp/providers/types";
 
 export interface Profile {
   id: string;
@@ -119,6 +130,10 @@ export interface Contact {
   email?: string;
   company?: string;
   avatar_url?: string;
+  /** True when this row is a WhatsApp group rather than a person. A
+   *  group has no number of its own; it is keyed by its JID in
+   *  `whatsapp_contact_identities`. Migration 045. */
+  is_group?: boolean;
   created_at: string;
   updated_at: string;
   /** Hydrated by queries that embed `contact_tags(tags(*))` (e.g. the
@@ -232,6 +247,7 @@ export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed'
 export interface Message {
   id: string;
   conversation_id: string;
+  provider: WhatsAppProvider;
   sender_type: SenderType;
   sender_id?: string;
   content_type: ContentType;
@@ -277,6 +293,18 @@ export interface Message {
   error_code?: number | null;
   error_title?: string | null;
   error_details?: string | null;
+  /**
+   * Who spoke, in a group thread where the conversation belongs to the
+   * group rather than to one person. Null in a one-to-one thread, where
+   * the sender is the conversation's contact. Migration 045.
+   */
+  author_name?: string | null;
+  /**
+   * True when the row was backfilled from the provider's history rather
+   * than delivered live. An imported row never triggered an automation,
+   * an AI reply or an outbound webhook. Migration 045.
+   */
+  imported?: boolean;
 }
 
 export type ReactionActor = 'customer' | 'agent';
@@ -294,12 +322,21 @@ export interface MessageReaction {
 export interface WhatsAppConfig {
   id: string;
   user_id: string;
-  phone_number_id: string;
-  waba_id?: string;
-  access_token: string;
-  verify_token?: string;
-  status: 'connected' | 'disconnected';
+  provider: WhatsAppProvider;
+  phone_number_id?: string | null;
+  waba_id?: string | null;
+  access_token?: string | null;
+  verify_token?: string | null;
+  status: Exclude<WhatsAppConnectionStatus, 'not_configured'>;
   connected_at?: string;
+  uazapi_instance_id?: string | null;
+  uazapi_instance_name?: string | null;
+  connection_attempt_id?: string | null;
+  connected_phone?: string | null;
+  connected_name?: string | null;
+  connected_avatar_url?: string | null;
+  last_connection_error?: string | null;
+  connection_checked_at?: string | null;
   /**
    * Set when POST /{phone_number_id}/register last succeeded. NULL
    * means the number was saved but never actually subscribed for
@@ -410,7 +447,13 @@ export interface Deal {
   assignee?: Profile;
 }
 
-export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
+export type BroadcastStatus =
+  | 'draft'
+  | 'scheduled'
+  | 'sending'
+  | 'sent'
+  | 'failed'
+  | 'cancelled';
 export type RecipientStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed';
 
 export interface Broadcast {
@@ -423,6 +466,7 @@ export interface Broadcast {
   audience_filter?: Record<string, unknown>;
   scheduled_at?: string;
   status: BroadcastStatus;
+  cancellation_reason?: string | null;
   total_recipients: number;
   sent_count: number;
   delivered_count: number;

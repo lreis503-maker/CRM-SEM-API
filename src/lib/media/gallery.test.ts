@@ -10,6 +10,7 @@ function msg(
   return {
     id,
     conversation_id: "conv-1",
+    provider: overrides.provider ?? "meta",
     sender_type: (overrides.sender_type ?? "customer") as SenderType,
     content_type,
     status: "delivered",

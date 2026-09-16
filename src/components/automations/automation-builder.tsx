@@ -72,6 +72,9 @@ import {
   type StepPath,
 } from "@/lib/automations/builder-tree"
 import { cn } from "@/lib/utils"
+import { useWhatsAppCapabilities } from '@/hooks/use-whatsapp-capabilities'
+import { ProviderDisabledControl } from '@/components/whatsapp/provider-disabled-control'
+import { providerDisabledReason } from '@/lib/whatsapp/providers/ui-policy'
 
 // ------------------------------------------------------------
 // Types (builder-local — mirror the flattened rows we POST)
@@ -200,6 +203,15 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
     default:
       return {}
   }
+}
+
+function hasTemplateStep(steps: BuilderStep[]): boolean {
+  return steps.some(
+    (step) =>
+      step.step_type === 'send_template' ||
+      hasTemplateStep(step.branches?.yes ?? []) ||
+      hasTemplateStep(step.branches?.no ?? []),
+  );
 }
 
 // ------------------------------------------------------------
@@ -635,10 +647,14 @@ function SendTemplateFields({
 export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   const router = useRouter()
   const t = useTranslations("Automations.builder")
+  const tProvider = useTranslations('provider')
+  const { snapshot, supports } = useWhatsAppCapabilities()
   const isEditing = !!initial.id
   const [state, setState] = useState<BuilderInitial>(initial)
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const hasUnsupportedTemplateStep = !supports('templates') && hasTemplateStep(state.steps)
+  const templateDisabledReason = providerDisabledReason(snapshot, 'templates', (key) => tProvider(key))
 
   function patchTop<K extends keyof BuilderInitial>(key: K, value: BuilderInitial[K]) {
     setState((s) => ({ ...s, [key]: value }))
@@ -651,6 +667,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   }
 
   function addStepAt(parent: ParentScope, index: number, type: AutomationStepType) {
+    if (type === 'send_template' && !supports('templates')) return
     const node: BuilderStep = {
       cid: cid(),
       step_type: type,
@@ -740,11 +757,20 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
         />
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className="hidden sm:inline">{t("active")}</span>
-          <Switch
-            checked={state.is_active}
-            onCheckedChange={(v) => patchTop("is_active", !!v)}
-            aria-label={t("activeAria")}
-          />
+          {hasUnsupportedTemplateStep && !state.is_active ? (
+            <ProviderDisabledControl reason={templateDisabledReason ?? tProvider('uazapiUnavailable')}>
+              <Switch checked={false} disabled aria-label={t("activeAria")} />
+            </ProviderDisabledControl>
+          ) : (
+            <Switch
+              checked={state.is_active}
+              onCheckedChange={(v) => {
+                if (v && hasUnsupportedTemplateStep) return
+                patchTop("is_active", !!v)
+              }}
+              aria-label={t("activeAria")}
+            />
+          )}
         </div>
         <Button
           onClick={save}
@@ -761,6 +787,11 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
         <div className="absolute inset-0 bg-[radial-gradient(circle,var(--border)_1px,transparent_1px)] [background-size:20px_20px] pointer-events-none" />
         <div className="relative mx-auto flex max-w-2xl flex-col items-center gap-0 px-4 py-10">
           <ResourcesProvider>
+            {hasUnsupportedTemplateStep ? (
+              <p role="status" className="mb-4 w-full max-w-[320px] rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+                {templateDisabledReason}
+              </p>
+            ) : null}
             <TriggerCard
               type={state.trigger_type}
               config={state.trigger_config}
@@ -1256,6 +1287,8 @@ function BranchColumn({
 
 function AddButton({ onPick }: { onPick: (t: AutomationStepType) => void }) {
   const t = useTranslations("Automations.builder")
+  const tProvider = useTranslations('provider')
+  const { snapshot } = useWhatsAppCapabilities()
   return (
     <div className="relative flex flex-col items-center">
       <div className="h-4 w-[2px] bg-border" aria-hidden />
@@ -1272,8 +1305,16 @@ function AddButton({ onPick }: { onPick: (t: AutomationStepType) => void }) {
         >
           {ADDABLE_STEPS.map((tp) => {
             const Icon = STEP_META[tp].icon
+            const disabledReason = tp === 'send_template'
+              ? providerDisabledReason(snapshot, 'templates', (key) => tProvider(key))
+              : null
             return (
-              <DropdownMenuItem key={tp} onClick={() => onPick(tp)}>
+              disabledReason ? <ProviderDisabledControl key={tp} reason={disabledReason}>
+                <span className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-sm text-muted-foreground">
+                  <Icon className="h-4 w-4" />
+                  {t(`steps.${STEP_META[tp].label}`)}
+                </span>
+              </ProviderDisabledControl> : <DropdownMenuItem key={tp} onClick={() => onPick(tp)}>
                 <Icon className="h-4 w-4" />
                 {t(`steps.${STEP_META[tp].label}`)}
               </DropdownMenuItem>

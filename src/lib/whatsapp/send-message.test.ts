@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import {
@@ -182,6 +182,51 @@ vi.mock('@/lib/whatsapp/encryption', () => ({
   isLegacyFormat: () => false,
 }));
 
+// The encrypted UAZAPI instance token is read with the service role.
+vi.mock('@/lib/whatsapp/admin-client', () => ({
+  supabaseAdmin: () => ({
+    from: () => ({
+      select() {
+        return this;
+      },
+      eq() {
+        return this;
+      },
+      maybeSingle: async () => ({
+        data: { uazapi_instance_token: 'plain-instance-token' },
+        error: null,
+      }),
+    }),
+  }),
+}));
+
+const uazapiSendText = vi.fn(async () => ({
+  messageId: 'uaz-msg-1',
+  chatId: null,
+  status: 'Sent',
+  timestamp: null,
+}));
+const uazapiSendMedia = vi.fn(async () => ({
+  messageId: 'uaz-media-1',
+  chatId: null,
+  status: 'Sent',
+  timestamp: null,
+}));
+
+vi.mock('@/lib/whatsapp/providers/uazapi-client', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  createUazapiInstanceClient: () => ({
+    sendText: uazapiSendText,
+    sendMedia: uazapiSendMedia,
+    configureWebhook: vi.fn(),
+    connect: vi.fn(),
+    getStatus: vi.fn(),
+    disconnect: vi.fn(),
+    deleteInstance: vi.fn(),
+    downloadMessage: vi.fn(),
+  }),
+}));
+
 vi.mock('@/lib/flows/admin-client', () => ({
   // Only used for the best-effort "pause active flow run" write.
   supabaseAdmin: () => ({
@@ -207,14 +252,17 @@ interface CapturedWrites {
 function sendPathDb(
   templateRows: unknown[],
   captured: CapturedWrites,
-  contact: Record<string, unknown> = { id: 'ct-1', phone: '+15551234567' }
+  contact: Record<string, unknown> = { id: 'ct-1', phone: '+15551234567' },
+  configOverride: Record<string, unknown> | null = null
 ): SupabaseClient {
   const conversation = {
     id: 'cv-1',
     contact,
   };
-  const config = {
+  const config = configOverride ?? {
     id: 'cfg-1',
+    provider: 'meta',
+    status: 'connected',
     phone_number_id: 'pn-1',
     access_token: 'token',
   };
@@ -443,5 +491,174 @@ describe('sendMessageToConversation — BSUID recipients (#519)', () => {
         { conversationId: 'cv-1', messageType: 'text', contentText: 'hi' }
       )
     ).rejects.toThrow(/não tem telefone nem ID de usuário do WhatsApp/);
+  });
+});
+
+// ============================================================
+// Provider routing
+//
+// Text and media go through whichever provider the account has active.
+// Everything Meta-only stays Meta-only, refused before any transport.
+// ============================================================
+
+const UAZAPI_CONFIG = {
+  id: 'cfg-uaz',
+  provider: 'uazapi',
+  status: 'connected',
+  phone_number_id: null,
+  waba_id: null,
+  access_token: null,
+};
+
+function uazapiDb(captured: CapturedWrites, contact?: Record<string, unknown>) {
+  return sendPathDb([], captured, contact, UAZAPI_CONFIG);
+}
+
+describe('sendMessageToConversation - provider routing', () => {
+  beforeEach(() => {
+    vi.stubEnv('UAZAPI_ENABLED', 'true');
+    vi.stubEnv('UAZAPI_BASE_URL', 'https://tenant.uazapi.com');
+    vi.stubEnv('UAZAPI_ADMIN_TOKEN', 'admin-secret');
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://crm.example.com');
+    uazapiSendText.mockClear();
+    uazapiSendMedia.mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('sends text through UAZAPI and records the provider on the row', async () => {
+    const captured: CapturedWrites = {};
+
+    const result = await sendMessageToConversation(uazapiDb(captured), 'acct-1', {
+      conversationId: 'cv-1',
+      messageType: 'text',
+      contentText: 'ola',
+    });
+
+    expect(uazapiSendText).toHaveBeenCalledWith(
+      expect.objectContaining({ number: '15551234567', text: 'ola' })
+    );
+    expect(result.whatsappMessageId).toBe('uaz-msg-1');
+    expect(captured.message).toMatchObject({
+      provider: 'uazapi',
+      message_id: 'uaz-msg-1',
+      sender_type: 'agent',
+    });
+  });
+
+  it('tracks the send with the id it persists', async () => {
+    const captured: CapturedWrites = {};
+
+    await sendMessageToConversation(uazapiDb(captured), 'acct-1', {
+      conversationId: 'cv-1',
+      messageType: 'text',
+      contentText: 'ola',
+    });
+
+    // The row id is generated before the send so it can travel as the
+    // tracking id. (The fake returns a fixed id from `.single()`, so the
+    // assertion is against the row we actually wrote.)
+    const [call] = uazapiSendText.mock.calls[0] as unknown as [
+      { trackId: string },
+    ];
+    expect(typeof captured.message?.id).toBe('string');
+    expect(call.trackId).toBe(captured.message?.id);
+  });
+
+  it('sends media through UAZAPI with the caption', async () => {
+    const captured: CapturedWrites = {};
+
+    await sendMessageToConversation(uazapiDb(captured), 'acct-1', {
+      conversationId: 'cv-1',
+      messageType: 'image',
+      mediaUrl: 'https://cdn.example.com/a.jpg',
+      contentText: 'veja',
+    });
+
+    expect(uazapiSendMedia).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'image', caption: 'veja' })
+    );
+    expect(captured.message?.provider).toBe('uazapi');
+  });
+
+  it('refuses a template under UAZAPI before any transport call', async () => {
+    const captured: CapturedWrites = {};
+
+    await expect(
+      sendMessageToConversation(uazapiDb(captured), 'acct-1', {
+        conversationId: 'cv-1',
+        messageType: 'template',
+        templateName: 'order_update',
+      })
+    ).rejects.toMatchObject({ code: 'provider_not_supported', status: 409 });
+
+    expect(uazapiSendText).not.toHaveBeenCalled();
+    expect(uazapiSendMedia).not.toHaveBeenCalled();
+    expect(captured.message).toBeUndefined();
+  });
+
+  it('refuses an interactive message under UAZAPI', async () => {
+    const captured: CapturedWrites = {};
+
+    await expect(
+      sendMessageToConversation(uazapiDb(captured), 'acct-1', {
+        conversationId: 'cv-1',
+        messageType: 'interactive',
+        interactivePayload: {
+          kind: 'buttons',
+          body: 'Escolha',
+          buttons: [{ id: 'a', title: 'A' }],
+        },
+      })
+    ).rejects.toMatchObject({ code: 'provider_not_supported' });
+    expect(captured.message).toBeUndefined();
+  });
+
+  it('refuses to send while the UAZAPI session is not connected', async () => {
+    const captured: CapturedWrites = {};
+    const db = sendPathDb([], captured, undefined, {
+      ...UAZAPI_CONFIG,
+      status: 'connecting',
+    });
+
+    await expect(
+      sendMessageToConversation(db, 'acct-1', {
+        conversationId: 'cv-1',
+        messageType: 'text',
+        contentText: 'ola',
+      })
+    ).rejects.toMatchObject({ code: 'whatsapp_not_connected', status: 409 });
+    expect(uazapiSendText).not.toHaveBeenCalled();
+  });
+
+  it('makes exactly one UAZAPI attempt when the send fails', async () => {
+    const captured: CapturedWrites = {};
+    uazapiSendText.mockRejectedValueOnce(new Error('timeout'));
+
+    await expect(
+      sendMessageToConversation(uazapiDb(captured), 'acct-1', {
+        conversationId: 'cv-1',
+        messageType: 'text',
+        contentText: 'ola',
+      })
+    ).rejects.toMatchObject({ code: 'provider_error', status: 502 });
+
+    expect(uazapiSendText).toHaveBeenCalledTimes(1);
+    expect(captured.message).toBeUndefined();
+  });
+
+  it('still records provider meta for a Meta account', async () => {
+    const captured: CapturedWrites = {};
+
+    await sendMessageToConversation(sendPathDb([], captured), 'acct-1', {
+      conversationId: 'cv-1',
+      messageType: 'text',
+      contentText: 'hi',
+    });
+
+    expect(captured.message?.provider).toBe('meta');
+    expect(uazapiSendText).not.toHaveBeenCalled();
   });
 });

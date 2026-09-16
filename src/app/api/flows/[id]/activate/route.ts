@@ -3,6 +3,21 @@ import { createClient } from '@/lib/supabase/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { validateFlowForActivation } from '@/lib/flows/validate'
+import {
+  isProviderNotSupportedError,
+  providerCapabilityErrorResponse,
+  requireAccountCapability,
+} from '@/lib/whatsapp/providers/account-capability-guard'
+
+function containsInteractiveNode(nodes: unknown): boolean {
+  return Array.isArray(nodes) && nodes.some(
+    (node) =>
+      typeof node === 'object' &&
+      node !== null &&
+      'node_type' in node &&
+      (node.node_type === 'send_buttons' || node.node_type === 'send_list'),
+  )
+}
 
 /**
  * POST /api/flows/[id]/activate
@@ -28,8 +43,9 @@ export async function POST(
   // flows_update policy requires `agent`, but the service-role client
   // below bypasses RLS, so enforce the role here (a viewer passes the
   // membership-only ownership check).
+  let accountContext: Awaited<ReturnType<typeof requireRole>>
   try {
-    await requireRole('agent')
+    accountContext = await requireRole('agent')
   } catch (err) {
     return toErrorResponse(err)
   }
@@ -80,6 +96,20 @@ export async function POST(
     ])
     if (!flow) {
       return NextResponse.json({ error: "Não encontrado" }, { status: 404 })
+    }
+    if (containsInteractiveNode(nodes)) {
+      try {
+        await requireAccountCapability(
+          accountContext.supabase,
+          accountContext.accountId,
+          'interactive',
+        )
+      } catch (error) {
+        if (isProviderNotSupportedError(error)) {
+          return providerCapabilityErrorResponse(error)
+        }
+        return toErrorResponse(error)
+      }
     }
     const issues = validateFlowForActivation(
       flow as {

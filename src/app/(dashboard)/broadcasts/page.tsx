@@ -19,6 +19,7 @@ import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
 import { useTranslations } from 'next-intl';
+import { ProviderPageGuard } from '@/components/whatsapp/provider-page-guard';
 
 /**
  * Poll cadence while any broadcast is sending. Kept modest so we don't
@@ -58,7 +59,7 @@ function RateCell({
   );
 }
 
-export default function BroadcastsPage() {
+function BroadcastsPageContent() {
   const router = useRouter();
   const t = useTranslations('Broadcasts.page');
   const tStatus = useTranslations('Broadcasts.status');
@@ -288,5 +289,13 @@ export default function BroadcastsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function BroadcastsPage() {
+  return (
+    <ProviderPageGuard capability="broadcasts">
+      <BroadcastsPageContent />
+    </ProviderPageGuard>
   );
 }

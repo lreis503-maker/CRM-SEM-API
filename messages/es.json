@@ -14,6 +14,11 @@
     "noAccount": "¿No tienes una cuenta?",
     "createAccount": "Crear cuenta"
   },
+  "provider": {
+    "metaOnly": "Disponible solo con la API oficial de Meta",
+    "uazapiUnavailable": "Esta función no está disponible mientras se carga la conexión de WhatsApp.",
+    "unsupportedPage": "Las difusiones están disponibles solo con la API oficial de Meta."
+  },
   "Sidebar": {
     "title": "Vortex CRM",
     "primaryNav": "Principal",
@@ -306,7 +311,15 @@
       "deals": "Negocios",
       "noTags": "Sin etiquetas",
       "noDeals": "Sin negocios",
-      "addNotePlaceholder": "Agregar una nota..."
+      "addNotePlaceholder": "Agregar una nota...",
+      "tagAdd": "Etiquetar",
+      "tagSearchPlaceholder": "Buscar o crear etiqueta...",
+      "tagCreate": "Crear \"{name}\" y aplicar",
+      "tagNoneYet": "Aún no hay etiquetas. Escriba un nombre para crear la primera.",
+      "tagNoMatch": "Ninguna etiqueta con ese nombre.",
+      "tagRemove": "Quitar etiqueta {name}",
+      "tagUpdateFailed": "No se pudo actualizar la etiqueta.",
+      "tagCreateFailed": "No se pudo crear la etiqueta."
     },
     "aiBanner": {
       "pausedTitle": "El asistente de IA está en pausa aquí",
@@ -1658,7 +1671,98 @@
       "wabaSubscribed": "La cuenta de WhatsApp Business está suscrita a esta app: los webhooks entrantes pueden entregarse.",
       "wabaNotSubscribed": "La cuenta de WhatsApp Business no está suscrita a esta app, así que Meta no entregará webhooks entrantes. Vuelve a ingresar el token de acceso y guarda de nuevo para suscribirla.",
       "webhookUnavailable": "Recepción de mensajes no disponible",
-      "webhookSecretMissing": "El servidor no tiene el secreto de la aplicación de Meta o usa el valor de ejemplo. Configure META_APP_SECRET en .env.local o en el alojamiento con el secreto en Meta for Developers → Configuración de la aplicación → Básica. Es diferente del token de verificación y del token de acceso. Reinicie el servidor y pruebe la conexión."
+      "webhookSecretMissing": "El servidor no tiene el secreto de la aplicación de Meta o usa el valor de ejemplo. Configure META_APP_SECRET en .env.local o en el alojamiento con el secreto en Meta for Developers → Configuración de la aplicación → Básica. Es diferente del token de verificación y del token de acceso. Reinicie el servidor y pruebe la conexión.",
+      "providerChoice": {
+        "label": "Cómo conectar WhatsApp",
+        "metaLabel": "API oficial de Meta",
+        "metaHint": "Funciones completas, incluidas plantillas y difusiones.",
+        "uazapiLabel": "UAZAPI (código QR)",
+        "uazapiHint": "Conexión por código QR, con texto y multimedia.",
+        "uazapiUnavailable": "UAZAPI todavía no está habilitada en esta instalación.",
+        "needsAdmin": "Solo los administradores pueden cambiar la conexión.",
+        "activeBadge": "En uso"
+      },
+      "uazapi": {
+        "title": "Conexión por código QR",
+        "description": "Escanea el código con el teléfono que tiene el WhatsApp de la empresa.",
+        "scanHint": "En el teléfono, abre WhatsApp, entra en Dispositivos vinculados y escanea el código.",
+        "qrAlt": "Código QR para conectar WhatsApp",
+        "expiresIn": "El código caduca en {seconds}s.",
+        "qrExpiredTitle": "El código caducó",
+        "qrExpiredBody": "Genera un código QR nuevo para continuar. No se perdió la conexión.",
+        "errorTitle": "No se pudo contactar al proveedor",
+        "errorBody": "Intenta de nuevo. Si sigue fallando, avisa a quien administra el servidor.",
+        "startButton": "Conectar con código QR",
+        "refreshQrButton": "Generar un código QR nuevo",
+        "reconnectButton": "Reconectar",
+        "retryButton": "Intentar de nuevo",
+        "removeButton": "Quitar conexión",
+        "removed": "Conexión eliminada.",
+        "removeFailed": "No se pudo eliminar la conexión.",
+        "connectedName": "Perfil",
+        "connectedPhone": "Número",
+        "switchedTitle": "Qué se detuvo",
+        "switchedBody": "Difusiones canceladas: {broadcasts}. Automatizaciones desactivadas: {automations}. Flujos que volvieron a borrador: {flows}. Tus contactos, conversaciones y mensajes siguen guardados.",
+        "confirmTitle": "¿Cambiar a UAZAPI?",
+        "confirmBody": "La conexión actual de Meta se apagará en esta cuenta y las funciones exclusivas de Meta dejarán de estar disponibles.",
+        "confirmHistory": "No se borran contactos, conversaciones ni mensajes. Puedes volver a Meta más adelante.",
+        "confirmCancel": "Cancelar",
+        "confirmAccept": "Cambiar y mostrar el código QR",
+        "unavailableTitle": "UAZAPI no está disponible en esta instalación",
+        "unavailableBody": "Quien administra el servidor debe habilitar UAZAPI antes de usar esta opción.",
+        "howToTitle": "Cómo funciona",
+        "howToStep1": "Elige UAZAPI y confirma el cambio.",
+        "howToStep2": "Escanea el código QR con el teléfono de la empresa.",
+        "howToStep3": "Listo: los mensajes de texto y multimedia usan esta conexión.",
+        "limitsNote": "En esta versión UAZAPI atiende conversaciones individuales y grupos con texto, imagen, video, audio y documento. Las plantillas, la sincronización y los Envíos masivos siguen siendo exclusivos de la API oficial de Meta.",
+        "status": {
+          "not_configured": "Todavía sin conectar",
+          "disconnected": "Desconectado",
+          "connecting": "Esperando la lectura del código QR",
+          "connected": "Conectado",
+          "hibernated": "Sesión en pausa",
+          "error": "Con error"
+        },
+        "errors": {
+          "uazapi_not_available": "UAZAPI no está habilitada en el servidor.",
+          "uazapi_request_failed": "El proveedor no respondió como se esperaba.",
+          "wrong_provider": "Esta cuenta no está usando UAZAPI.",
+          "not_configured": "No se encontró ninguna conexión UAZAPI.",
+          "missing_instance": "La conexión UAZAPI está incompleta.",
+          "missing_token": "La conexión UAZAPI está incompleta.",
+          "invalid_action": "Acción inválida.",
+          "network": "No se pudo contactar al servidor.",
+          "unknown": "No se pudo completar la acción."
+        },
+        "history": {
+          "title": "Descargar historial",
+          "description": "Trae a la bandeja de entrada las conversaciones que ya están en el celular, incluidos los grupos y lo que usted mismo respondió.",
+          "progress": "{chats} conversaciones leídas, {messages} mensajes importados.",
+          "busyHint": "Mantenga esta pestaña abierta hasta que termine. Puede continuar después.",
+          "note": "Los mensajes importados aparecen en la conversación, pero no cuentan como no leídos ni activan automatizaciones, IA o webhooks.",
+          "failedHint": "El último intento se detuvo antes de terminar. Continuar retoma desde donde quedó.",
+          "finished": "Historial descargado: {messages} mensajes.",
+          "action": {
+            "start": "Descargar historial",
+            "resume": "Continuar desde donde quedó",
+            "again": "Descargar de nuevo"
+          },
+          "errors": {
+            "provider_not_supported": "El historial solo se puede descargar con la conexión por código QR.",
+            "not_connected": "Conecte WhatsApp antes de descargar el historial.",
+            "import_already_running": "Ya hay una descarga en curso.",
+            "provider_unavailable": "El proveedor no respondió. Inténtelo de nuevo en unos minutos.",
+            "uazapi_not_available": "La conexión por código QR no está disponible.",
+            "network": "Error de conexión. Revise su internet e inténtelo de nuevo.",
+            "unknown": "No se pudo descargar el historial en este momento.",
+            "unreadable": "El proveedor respondió en un formato que este CRM no entiende. La descarga se detuvo."
+          },
+          "unreadableHint": "Atención: {count} registros llegaron en un formato que este CRM no entiende y quedaron fuera. La descarga puede estar trayendo menos de lo que hay. Avise al responsable de la instalación."
+        },
+        "resyncButton": "Sincronizar configuración",
+        "resyncHint": "Vuelve a aplicar en UAZAPI qué eventos recibe el CRM y a dónde se envían. No desconecta WhatsApp ni pide el código QR.",
+        "resynced": "Configuración sincronizada."
+      }
     },
     "sections": {
       "overview": "Resumen",

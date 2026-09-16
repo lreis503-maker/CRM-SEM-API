@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { AiConfig } from './types'
+import { ProviderNotSupportedError } from '@/lib/whatsapp/providers/capabilities'
 
 // Shared, hoisted mock state so the module mocks can close over it.
 const h = vi.hoisted(() => ({
@@ -247,6 +248,23 @@ describe('dispatchInboundToAiReply — typing indicator (#527)', () => {
     await dispatchInboundToAiReply(ARGS)
     expect(h.sendTypingIndicator).not.toHaveBeenCalled()
     expect(h.engineSendText).toHaveBeenCalledTimes(1)
+    warn.mockRestore()
+  })
+
+  it('replies on UAZAPI with no typing indicator and no warning', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    h.loadAccountMetaCredentials.mockRejectedValue(
+      new ProviderNotSupportedError('uazapi', 'meta_service_window'),
+    )
+
+    await dispatchInboundToAiReply(ARGS)
+
+    // The reply still goes out — through whichever provider the account
+    // has active, which engineSendText resolves on its own.
+    expect(h.engineSendText).toHaveBeenCalledTimes(1)
+    expect(h.sendTypingIndicator).not.toHaveBeenCalled()
+    // A provider that has no typing indicator is expected, not a fault.
+    expect(warn).not.toHaveBeenCalled()
     warn.mockRestore()
   })
 

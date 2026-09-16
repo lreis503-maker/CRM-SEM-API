@@ -4,6 +4,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 
 import { cn } from '@/lib/utils';
+import { ProviderDisabledControl } from '@/components/whatsapp/provider-disabled-control';
 import {
   RAIL_GROUPS,
   SECTION_META,
@@ -26,10 +27,12 @@ export function SettingsRail({
   active,
   onSelect,
   hints,
+  disabledSections,
 }: {
   active: SettingsSection;
   onSelect: (section: SettingsSection) => void;
   hints?: Partial<Record<SettingsSection, ReactNode>>;
+  disabledSections?: Partial<Record<SettingsSection, string>>;
 }) {
   const t = useTranslations('Settings');
   const activeRef = useRef<HTMLButtonElement>(null);
@@ -73,8 +76,36 @@ export function SettingsRail({
               const meta = SECTION_META[s];
               const Icon = meta.icon;
               const isActive = s === active;
+              const disabledReason = disabledSections?.[s];
+              const content = (
+                <>
+                  <Icon className="size-4 shrink-0" />
+                  <span className="flex-1">{t(`sections.${s}`)}</span>
+                  {hints?.[s] != null ? (
+                    <span
+                      className={cn(
+                        'hidden items-center gap-1.5 text-xs lg:inline-flex',
+                        isActive ? 'text-primary' : 'text-muted-foreground',
+                      )}
+                    >
+                      {hints[s]}
+                    </span>
+                  ) : null}
+                </>
+              );
               return (
-                <button
+                disabledReason ? (
+                <ProviderDisabledControl key={s} reason={disabledReason} className="flex">
+                  <span
+                    className={cn(
+                      'flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium whitespace-nowrap lg:w-full',
+                      isActive ? 'bg-primary-soft text-primary' : 'text-muted-foreground',
+                    )}
+                  >
+                    {content}
+                  </span>
+                </ProviderDisabledControl>
+                ) : <button
                   key={s}
                   ref={isActive ? activeRef : undefined}
                   type="button"
@@ -88,18 +119,7 @@ export function SettingsRail({
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                   )}
                 >
-                  <Icon className="size-4 shrink-0" />
-                  <span className="flex-1">{t(`sections.${s}`)}</span>
-                  {hints?.[s] != null ? (
-                    <span
-                      className={cn(
-                        'hidden items-center gap-1.5 text-xs lg:inline-flex',
-                        isActive ? 'text-primary' : 'text-muted-foreground',
-                      )}
-                    >
-                      {hints[s]}
-                    </span>
-                  ) : null}
+                  {content}
                 </button>
               );
             })}

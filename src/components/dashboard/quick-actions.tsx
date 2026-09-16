@@ -5,6 +5,10 @@ import { UserPlus, Briefcase, Radio, Zap } from 'lucide-react'
 import type { ComponentType } from 'react'
 
 import { useTranslations } from 'next-intl'
+import { useWhatsAppCapabilities } from '@/hooks/use-whatsapp-capabilities'
+import { ProviderDisabledControl } from '@/components/whatsapp/provider-disabled-control'
+import { providerDisabledReason } from '@/lib/whatsapp/providers/ui-policy'
+import type { WhatsAppCapability } from '@/lib/whatsapp/providers/types'
 
 // Quick-action shortcuts. Each navigates to the page that owns the
 // relevant "create" flow. We deliberately don't try to auto-open any
@@ -15,32 +19,47 @@ interface Action {
   href: string
   icon: ComponentType<{ className?: string }>
   tint: string
+  requires?: WhatsAppCapability
 }
 
 const ACTIONS: Action[] = [
   { labelKey: 'newContact', href: '/contacts', icon: UserPlus, tint: 'text-primary' },
   { labelKey: 'newDeal', href: '/pipelines', icon: Briefcase, tint: 'text-blue-400' },
-  { labelKey: 'newBroadcast', href: '/broadcasts/new', icon: Radio, tint: 'text-amber-400' },
+  { labelKey: 'newBroadcast', href: '/broadcasts/new', icon: Radio, tint: 'text-amber-400', requires: 'broadcasts' },
   { labelKey: 'newAutomation', href: '/automations/new', icon: Zap, tint: 'text-primary' },
 ]
 
 export function QuickActions() {
   const t = useTranslations('Dashboard.quickActions')
+  const tProvider = useTranslations('provider')
+  const { snapshot } = useWhatsAppCapabilities()
   
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       {ACTIONS.map((a) => {
         const Icon = a.icon
+        const disabledReason = a.requires
+          ? providerDisabledReason(snapshot, a.requires, (key) => tProvider(key))
+          : null
+        const content = <>
+          <div className={`flex h-9 w-9 items-center justify-center rounded-lg bg-muted ${a.tint}`}>
+            <Icon className="h-4 w-4" />
+          </div>
+          <span className="text-sm font-medium text-foreground">{t(a.labelKey as string)}</span>
+        </>
         return (
-          <Link
+          disabledReason ? (
+          <ProviderDisabledControl key={a.href} reason={disabledReason} className="flex">
+            <span className="group flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+              {content}
+            </span>
+          </ProviderDisabledControl>
+          ) : <Link
             key={a.href}
             href={a.href}
             className="group flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:border-border hover:bg-muted/60"
           >
-            <div className={`flex h-9 w-9 items-center justify-center rounded-lg bg-muted ${a.tint}`}>
-              <Icon className="h-4 w-4" />
-            </div>
-            <span className="text-sm font-medium text-foreground">{t(a.labelKey as string)}</span>
+            {content}
           </Link>
         )
       })}

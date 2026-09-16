@@ -53,9 +53,14 @@ export interface MirrorInboundMediaArgs {
   accountId: string;
   /** Meta's media id. Makes the object path deterministic. */
   mediaId: string;
-  /** Short-lived CDN URL from `getMediaUrl`. */
+  /** Short-lived CDN URL from `getMediaUrl`, or a provider-hosted link. */
   downloadUrl: string;
-  accessToken: string;
+  /**
+   * Meta's access token. Optional because a provider whose media links
+   * are public — UAZAPI — has no credential to present; those callers
+   * inject their own `download`.
+   */
+  accessToken?: string;
   /** Meta's `mime_type` for the media. */
   mimeType?: string | null;
   /** Meta's `file_size`, when it gave us one — lets us skip before downloading. */
@@ -176,7 +181,10 @@ export async function mirrorInboundMedia(
   }
 
   try {
-    const { buffer, contentType } = await download({ downloadUrl, accessToken });
+    const { buffer, contentType } = await download({
+      downloadUrl,
+      accessToken: accessToken ?? "",
+    });
 
     // Meta's `file_size` is advisory; the transfer is the truth. Check
     // again so an understated size can't push a rejected upload onto
