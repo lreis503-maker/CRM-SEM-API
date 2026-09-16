@@ -443,20 +443,11 @@ $b = New-Object byte[] 32
       </li>
     </ol>
 
-    <h3>Escolher a versão certa do código</h3>
-
-    <ol>
-      <li>Clique no serviço que apareceu → aba <strong>Settings</strong>.</li>
-      <li>Procure <strong>Source</strong> → <strong>Branch</strong>.</li>
-      <li>Selecione: <code>feat/uazapi-whatsapp-provider</code></li>
-    </ol>
-
     <div class="aviso">
-      <strong>Esse passo é fácil de esquecer</strong>
-      A conexão do WhatsApp por QR Code está nessa versão do código. Se ficar na
-      <code>main</code>, o site sobe normalmente mas a opção de QR Code
-      simplesmente não aparece na tela — sem nenhuma mensagem explicando por
-      quê. Confirme antes de seguir.
+      <strong>Não precisa trocar de branch</strong>
+      A branch <code>main</code> já traz tudo — conexão do WhatsApp por QR
+      Code (UAZAPI) e o canal do Instagram. O Railway já publica direto dela,
+      sem precisar mexer em <strong>Source</strong> → <strong>Branch</strong>.
     </div>
 
     <h2>Parte 7 — Colocar as variáveis <span class="tempo">(5 min)</span></h2>
@@ -671,8 +662,8 @@ $b = New-Object byte[] 32
       </tr>
       <tr>
         <td>A opção de QR Code aparece apagada</td>
-        <td>faltam as variáveis da UAZAPI, ou branch errada</td>
-        <td>Confira a Parte 11 e a branch na Parte 6.</td>
+        <td>faltam as variáveis da UAZAPI</td>
+        <td>Confira a Parte 11.</td>
       </tr>
       <tr>
         <td>Conectou, mas não chega mensagem</td>
