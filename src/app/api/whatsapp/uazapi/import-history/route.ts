@@ -4,6 +4,7 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { supabaseAdmin } from '@/lib/whatsapp/admin-client';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { importUazapiHistoryBatch } from '@/lib/whatsapp/history/import-uazapi-history';
+import { createUazapiAvatarResolver } from '@/lib/whatsapp/inbound/uazapi-avatar';
 import { createUazapiMediaResolver } from '@/lib/whatsapp/inbound/uazapi-media';
 import { quarantineWebhookFailure } from '@/lib/whatsapp/inbound/webhook-quarantine';
 import { processInboundMessage } from '@/lib/whatsapp/inbound/process-inbound-message';
@@ -230,6 +231,15 @@ export async function POST() {
                   : null,
               accountId: config.account_id,
               occurredAt: event.occurredAt,
+            }),
+            resolveAvatar: createUazapiAvatarResolver({
+              client,
+              storage:
+                config.mirror_inbound_media !== false
+                  ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (db as any).storage
+                  : null,
+              accountId: config.account_id,
             }),
           }),
       });

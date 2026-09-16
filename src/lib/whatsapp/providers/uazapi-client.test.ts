@@ -671,6 +671,67 @@ describe('UAZAPI history reads', () => {
   });
 });
 
+describe('UAZAPI chat details (contact avatar)', () => {
+  it('asks for one contact by number and reads its photo', async () => {
+    const fetchImpl = fetchReturning({
+      wa_chatid: '5511999999999@s.whatsapp.net',
+      wa_name: 'Ada',
+      imagePreview: 'https://tenant.uazapi.com/photos/ada-small.jpg',
+    });
+
+    const details = await instanceClient(fetchImpl).getChatDetails({
+      number: '5511999999999',
+      preview: true,
+    });
+
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(`${BASE_URL}/chat/details`);
+    expect(lastBody(fetchImpl)).toEqual({
+      number: '5511999999999',
+      preview: true,
+    });
+    expect(details).toEqual({
+      id: '5511999999999@s.whatsapp.net',
+      imageUrl: 'https://tenant.uazapi.com/photos/ada-small.jpg',
+    });
+  });
+
+  it('reads the full-size field when no preview was requested', async () => {
+    const fetchImpl = fetchReturning({
+      id: 'r1a2b3',
+      image: 'https://tenant.uazapi.com/photos/ada-full.jpg',
+    });
+
+    const details = await instanceClient(fetchImpl).getChatDetails({
+      number: '5511999999999',
+    });
+
+    expect(lastBody(fetchImpl)).toEqual({ number: '5511999999999' });
+    expect(details).toEqual({
+      id: 'r1a2b3',
+      imageUrl: 'https://tenant.uazapi.com/photos/ada-full.jpg',
+    });
+  });
+
+  it('returns a null photo rather than failing when the contact has none', async () => {
+    const fetchImpl = fetchReturning({ wa_chatid: 'x@s.whatsapp.net' });
+
+    const details = await instanceClient(fetchImpl).getChatDetails({
+      number: '5511999999999',
+    });
+
+    expect(details).toEqual({ id: 'x@s.whatsapp.net', imageUrl: null });
+  });
+
+  it('refuses to look up a chat with no number', async () => {
+    const fetchImpl = fetchReturning({});
+
+    await expect(
+      instanceClient(fetchImpl).getChatDetails({ number: '  ' })
+    ).rejects.toSatisfy(isUazapiClientError);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
 describe('UAZAPI transport safety', () => {
   it('aborts a slow request with a 15 second budget', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ id: 'i-1' }));

@@ -160,6 +160,16 @@ export type InboundMediaResolver = (
 ) => Promise<{ url: string | null; mimeType: string | null }>;
 
 /**
+ * Fetches a durable photo URL for a chat, when the provider can supply
+ * one. Only UAZAPI implements it today, via `/chat/details` — the
+ * webhook payload itself never carries a sender's photo, so this is a
+ * separate lookup, not part of the normalized envelope. A provider with
+ * no such capability (Meta) simply never passes one, and the contact is
+ * created with no photo, same as before this existed.
+ */
+export type InboundAvatarResolver = (chatId: string) => Promise<string | null>;
+
+/**
  * Always the service-role client: inbound processing has no session to
  * scope by, and it writes tables no browser policy allows.
  */

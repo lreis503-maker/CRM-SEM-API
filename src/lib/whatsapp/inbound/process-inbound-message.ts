@@ -26,6 +26,7 @@ import {
 import { normalizePhone } from '../phone-utils';
 import type { WhatsAppProvider } from '../providers/types';
 import type {
+  InboundAvatarResolver,
   InboundDatabase,
   InboundMediaResolver,
   NormalizedInboundMessage,
@@ -215,13 +216,43 @@ async function loadContactById(
   return data ?? null;
 }
 
+/**
+ * The identifier `/chat/details` accepts: a bare phone for an individual
+ * (matching what the send path already sends as `number`), or the JID/LID
+ * for a group or an id-only sender. Null when neither is known.
+ */
+function avatarLookupKey(sender: NormalizedSender): string | null {
+  return sender.phone || sender.externalId;
+}
+
+/**
+ * Best-effort photo lookup. A failure or a missing resolver (every
+ * provider but UAZAPI) yields null rather than blocking contact creation.
+ */
+async function resolveAvatarUrl(
+  resolveAvatar: InboundAvatarResolver | undefined,
+  sender: NormalizedSender
+): Promise<string | null> {
+  if (!resolveAvatar) return null;
+  const key = avatarLookupKey(sender);
+  if (!key) return null;
+
+  try {
+    return await resolveAvatar(key);
+  } catch (error) {
+    console.error('[inbound] avatar lookup failed:', error);
+    return null;
+  }
+}
+
 async function findOrCreateContact(
   db: InboundDatabase,
   accountId: string,
   configOwnerUserId: string,
   provider: WhatsAppProvider,
   sender: NormalizedSender,
-  isGroup = false
+  isGroup = false,
+  resolveAvatar?: InboundAvatarResolver
 ): Promise<{ contact: ContactRow; wasCreated: boolean } | null> {
   const waUserId = bsuidOf(sender);
   const identity = externalIdentityOf(provider, sender);
@@ -256,10 +287,19 @@ async function findOrCreateContact(
 
   if (existingContact) {
     const patch = contactIdentityPatch(existingContact, sender);
-    if (patch) {
+    // Only ever fills a blank, same rule as the phone backfill above: a
+    // contact that already has a photo is not re-fetched on every
+    // message, which would mean one extra provider round-trip per
+    // inbound message forever.
+    const avatarUrl = existingContact.avatar_url
+      ? null
+      : await resolveAvatarUrl(resolveAvatar, sender);
+    const combinedPatch =
+      patch || avatarUrl ? { ...patch, ...(avatarUrl ? { avatar_url: avatarUrl } : {}) } : null;
+    if (combinedPatch) {
       const { data: updated, error: updateError } = await db
         .from('contacts')
-        .update({ ...patch, updated_at: new Date().toISOString() })
+        .update({ ...combinedPatch, updated_at: new Date().toISOString() })
         .eq('id', existingContact.id)
         .select()
         .maybeSingle();
@@ -299,6 +339,7 @@ async function findOrCreateContact(
   //
   // `phone` stays NOT NULL in the schema, so an id-only sender is stored
   // with '' — which migration 022's partial unique index tolerates.
+  const avatarUrl = await resolveAvatarUrl(resolveAvatar, sender);
   const { data: newContact, error: createError } = await db
     .from('contacts')
     .insert({
@@ -310,6 +351,7 @@ async function findOrCreateContact(
       wa_user_id: waUserId,
       wa_parent_user_id: sender.parentExternalId,
       wa_username: sender.username,
+      avatar_url: avatarUrl,
     })
     .select()
     .single();
@@ -418,8 +460,11 @@ export async function resolveInboundParticipants(input: {
   sender: NormalizedSender;
   /** True when the subject is a group rather than a person. */
   isGroup?: boolean;
+  /** UAZAPI only — Meta has no equivalent lookup. */
+  resolveAvatar?: InboundAvatarResolver;
 }): Promise<InboundParticipants | null> {
-  const { db, accountId, configOwnerUserId, provider, sender } = input;
+  const { db, accountId, configOwnerUserId, provider, sender, resolveAvatar } =
+    input;
 
   const contactOutcome = await findOrCreateContact(
     db,
@@ -427,7 +472,8 @@ export async function resolveInboundParticipants(input: {
     configOwnerUserId,
     provider,
     sender,
-    input.isGroup ?? false
+    input.isGroup ?? false,
+    resolveAvatar
   );
   if (!contactOutcome) return null;
 
@@ -524,6 +570,8 @@ export interface ProcessInboundMessageInput {
   /** Sender-of-record for inserts needing a NOT NULL user_id FK. */
   configOwnerUserId: string;
   resolveMedia: InboundMediaResolver;
+  /** UAZAPI only — Meta has no equivalent lookup. */
+  resolveAvatar?: InboundAvatarResolver;
   /** Pre-resolved participants, when the caller already looked them up. */
   participants?: InboundParticipants;
   /**
@@ -538,7 +586,8 @@ export interface ProcessInboundMessageInput {
 export async function processInboundMessage(
   input: ProcessInboundMessageInput
 ): Promise<void> {
-  const { db, event, accountId, configOwnerUserId, resolveMedia } = input;
+  const { db, event, accountId, configOwnerUserId, resolveMedia, resolveAvatar } =
+    input;
 
   const subject = threadSubject(event);
   const participants =
@@ -550,6 +599,7 @@ export async function processInboundMessage(
       provider: event.provider,
       sender: subject.sender,
       isGroup: subject.isGroup,
+      resolveAvatar,
     }));
   if (!participants) return;
 

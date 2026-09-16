@@ -129,6 +129,17 @@ export interface UazapiChatSummary {
   isGroup: boolean;
 }
 
+/** A contact or group's full detail record, narrowed to its photo. */
+export interface UazapiChatDetails {
+  id: string | null;
+  /**
+   * The provider hosts the photo only as long as the chat exists; a
+   * caller that wants it to outlive that must mirror it, same as any
+   * other UAZAPI-hosted media.
+   */
+  imageUrl: string | null;
+}
+
 export interface UazapiChatPage {
   chats: UazapiChatSummary[];
   /**
@@ -188,6 +199,14 @@ export interface UazapiInstanceClient {
     limit: number;
     offset?: number;
   }): Promise<UazapiMessagePage>;
+  /**
+   * Full detail record for one contact or group, the only endpoint that
+   * carries a profile photo — `/chat/find` and inbound webhooks never do.
+   */
+  getChatDetails(input: {
+    number: string;
+    preview?: boolean;
+  }): Promise<UazapiChatDetails | null>;
 }
 
 export interface UazapiAdminClientOptions {
@@ -598,6 +617,10 @@ const FIND_MESSAGES: UazapiOperation = {
   name: 'message.find',
   idempotent: true,
 };
+const GET_CHAT_DETAILS: UazapiOperation = {
+  name: 'chat.details',
+  idempotent: true,
+};
 
 /**
  * Pulls a list out of an envelope whose shape the contract does not pin
@@ -684,6 +707,24 @@ function parseChatSummary(
       asBoolean(record.wa_isGroup, false) ||
       asBoolean(record.isGroup, false) ||
       id.endsWith('@g.us'),
+  };
+}
+
+/**
+ * `/chat/details` answers with the `Chat` record directly — no list, no
+ * envelope — so this reads a single object rather than reusing
+ * `findRecordList`. `imagePreview` and `image` are mutually exclusive in
+ * the contract (the request's `preview` flag picks which one comes
+ * back), so either is accepted.
+ */
+function parseChatDetails(body: unknown): UazapiChatDetails | null {
+  const record = asRecord(body);
+  if (record === null) return null;
+
+  return {
+    id: asNonEmptyString(record.wa_chatid) ?? asNonEmptyString(record.id),
+    imageUrl:
+      asNonEmptyString(record.imagePreview) ?? asNonEmptyString(record.image),
   };
 }
 
@@ -944,6 +985,22 @@ export function createUazapiInstanceClient(
         nextOffset:
           asFiniteNumber(record.nextOffset) ?? offset + messages.length,
       };
+    },
+
+    async getChatDetails(input) {
+      const number = asNonEmptyString(input.number);
+      if (number === null) {
+        throw invalidRequest(GET_CHAT_DETAILS.name, 'missing_number');
+      }
+
+      const body = await transport.request({
+        operation: GET_CHAT_DETAILS,
+        method: 'POST',
+        path: '/chat/details',
+        body: compact({ number, preview: input.preview }),
+      });
+
+      return parseChatDetails(body);
     },
   };
 }

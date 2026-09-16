@@ -75,6 +75,7 @@ function uazapiClient() {
     downloadMessage: vi.fn(),
     findChats: vi.fn(),
     findMessages: vi.fn(),
+    getChatDetails: vi.fn(),
   };
 }
 

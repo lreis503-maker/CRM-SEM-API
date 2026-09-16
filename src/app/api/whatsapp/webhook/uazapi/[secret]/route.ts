@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 
 import { supabaseAdmin } from '@/lib/whatsapp/admin-client';
 import { decrypt } from '@/lib/whatsapp/encryption';
+import { createUazapiAvatarResolver } from '@/lib/whatsapp/inbound/uazapi-avatar';
 import { createUazapiMediaResolver } from '@/lib/whatsapp/inbound/uazapi-media';
 import {
   normalizeUazapiWebhook,
@@ -271,6 +272,17 @@ export async function POST(
           : // No usable client: store the message without its attachment
             // rather than dropping the message itself.
             async (media) => ({ url: null, mimeType: media.mimeType }),
+        resolveAvatar: client
+          ? createUazapiAvatarResolver({
+              client,
+              storage:
+                config.mirror_inbound_media !== false
+                  ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (db as any).storage
+                  : null,
+              accountId: config.account_id,
+            })
+          : undefined,
       });
     }
 
