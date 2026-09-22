@@ -27,7 +27,7 @@ import {
   type MonitorAlertState,
 } from './account-health';
 import { buildClientMessage, buildInternalMessage } from './alert-message';
-import { loadAdPlatformCredentialWithToken } from './credentials';
+import { loadCredentialToken } from './credentials';
 import {
   createMetaAdsClient,
   type MetaAdAccountSnapshot,
@@ -46,6 +46,12 @@ const RETRYABLE_FAILURE_ALERT_AT = 3;
 export interface MonitorRow {
   id: string;
   account_id: string;
+  /**
+   * Portfólio cujo token lê esta conta. Nulo só em linha antiga que a
+   * migração 048 não conseguiu atribuir — o ciclo pula e grava o
+   * motivo, em vez de tentar adivinhar o portfólio.
+   */
+  credential_id: string | null;
   external_account_id: string;
   display_name: string | null;
   contact_id: string | null;
@@ -231,7 +237,7 @@ export async function runAdAccountMonitors(
   let query = db
     .from('ad_account_monitors')
     .select(
-      'id, account_id, external_account_id, display_name, contact_id, low_balance_threshold_cents, currency, notify_client, notify_internal, cooldown_hours'
+      'id, account_id, credential_id, external_account_id, display_name, contact_id, low_balance_threshold_cents, currency, notify_client, notify_internal, cooldown_hours'
     )
     .eq('enabled', true)
     .eq('platform', 'meta')
@@ -267,11 +273,36 @@ export async function runAdAccountMonitors(
     states.set(String(row.monitor_id), mapState(row));
   }
 
-  // Uma credencial por conta do CRM, decifrada uma vez só por ciclo.
-  const credentials = new Map<
-    string,
-    { accessToken: string; internalPhone: string | null } | null
-  >();
+  // Os portfólios envolvidos neste lote, lidos de uma vez. Só os
+  // metadados: o token de cada um é decifrado sob demanda, logo abaixo,
+  // e no máximo uma vez por ciclo.
+  const credentialIds = [
+    ...new Set(
+      monitors
+        .map((monitor) => monitor.credential_id)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0)
+    ),
+  ];
+
+  const internalPhones = new Map<string, string | null>();
+  if (credentialIds.length > 0) {
+    const { data: credentialRows, error: credentialError } = await db
+      .from('ad_platform_credentials')
+      .select('id, internal_notify_phone')
+      .in('id', credentialIds);
+    if (credentialError) throw credentialError;
+
+    for (const row of (credentialRows ?? []) as Record<string, unknown>[]) {
+      internalPhones.set(
+        String(row.id),
+        typeof row.internal_notify_phone === 'string'
+          ? row.internal_notify_phone
+          : null
+      );
+    }
+  }
+
+  const tokens = new Map<string, string | null>();
 
   for (const monitor of monitors) {
     const state = states.get(monitor.id) ?? EMPTY_STATE;
@@ -285,37 +316,45 @@ export async function runAdAccountMonitors(
       continue;
     }
 
-    if (!credentials.has(monitor.account_id)) {
-      const loaded = await loadAdPlatformCredentialWithToken(
+    // Sem token não há o que ler. Fica gravado para a tela mostrar, e
+    // nada é enviado: quem precisa configurar já está dentro do CRM.
+    const credentialId = monitor.credential_id;
+    if (credentialId === null) {
+      await writeState(
         db,
-        monitor.account_id
+        monitor,
+        { ...state, consecutiveFailures: state.consecutiveFailures + 1 },
+        now,
+        null,
+        'Escolha o portfólio desta conta em Monitoramento de contas de anúncio.'
       );
-      credentials.set(
-        monitor.account_id,
-        loaded
-          ? {
-              accessToken: loaded.accessToken,
-              internalPhone: loaded.internalNotifyPhone,
-            }
-          : null
-      );
+      result.failures++;
+      continue;
     }
 
-    const credential = credentials.get(monitor.account_id) ?? null;
-    if (credential === null) {
-      // Sem token não há o que ler. Fica gravado para a tela mostrar,
-      // e nada é enviado: quem precisa configurar já está no CRM.
-      await writeState(db, monitor, {
-        ...state,
-        consecutiveFailures: state.consecutiveFailures + 1,
-      }, now, null, 'Conecte o token do Business Manager em Configurações.');
+    if (!tokens.has(credentialId)) {
+      tokens.set(credentialId, await loadCredentialToken(db, credentialId));
+    }
+
+    const accessToken = tokens.get(credentialId) ?? null;
+    const internalPhone = internalPhones.get(credentialId) ?? null;
+
+    if (accessToken === null) {
+      await writeState(
+        db,
+        monitor,
+        { ...state, consecutiveFailures: state.consecutiveFailures + 1 },
+        now,
+        null,
+        'Este portfólio está sem token. Cole o token do Business Manager de novo.'
+      );
       result.failures++;
       continue;
     }
 
     let snapshot: MetaAdAccountSnapshot;
     try {
-      snapshot = await createClient(credential.accessToken).readAdAccount(
+      snapshot = await createClient(accessToken).readAdAccount(
         monitor.external_account_id
       );
     } catch (error) {
@@ -326,7 +365,7 @@ export async function runAdAccountMonitors(
         state,
         now,
         error,
-        internalPhone: credential.internalPhone,
+        internalPhone,
         sendToPhone,
       });
       continue;
@@ -357,7 +396,7 @@ export async function runAdAccountMonitors(
         currency,
         availableCents: health.availableCents,
         snapshot,
-        internalPhone: credential.internalPhone,
+        internalPhone,
         sendToContact,
         sendToPhone,
       });

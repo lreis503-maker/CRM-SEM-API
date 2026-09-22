@@ -37,11 +37,17 @@ describe('buildClientMessage', () => {
     ).toMatch(/^Oi!/);
   });
 
-  it('diz o saldo e o limite no aviso de saldo baixo', () => {
+  it('diz o limite, e só o limite', () => {
     const text = buildClientMessage('low_balance', CONTEXT);
-    expect(text).toMatch(/87,50/);
     expect(text).toMatch(/100,00/);
     expect(text).toContain('Loja da Ana — Vendas');
+  });
+
+  it('nunca revela o saldo exato ao cliente', () => {
+    // O saldo do contexto é R$ 87,50. Ele pertence à cópia interna.
+    for (const kind of ['low_balance', 'balance_recovered'] as const) {
+      expect(buildClientMessage(kind, CONTEXT)).not.toMatch(/87,50/);
+    }
   });
 
   it('nunca expõe o id da conta de anúncio para o cliente', () => {
@@ -79,14 +85,14 @@ describe('buildClientMessage', () => {
     expect(text).not.toContain('motivo_novo_da_meta');
   });
 
-  it('lida com saldo indisponível sem escrever "null"', () => {
-    const text = buildClientMessage('low_balance', {
+  it('sai igual mesmo sem saldo lido, sem escrever "null"', () => {
+    const semSaldo = buildClientMessage('low_balance', {
       ...CONTEXT,
       availableCents: null,
     });
-    expect(text).toContain('está acabando');
-    expect(text).not.toContain('null');
-    expect(text).not.toContain('NaN');
+    expect(semSaldo).toBe(buildClientMessage('low_balance', CONTEXT));
+    expect(semSaldo).not.toContain('null');
+    expect(semSaldo).not.toContain('NaN');
   });
 });
 

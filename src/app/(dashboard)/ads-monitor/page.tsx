@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 
 import { getCurrentAccount } from '@/lib/auth/account'
 import { hasMinRole } from '@/lib/auth/roles'
-import { loadAdPlatformCredential } from '@/lib/ads/credentials'
+import { listAdPlatformCredentials } from '@/lib/ads/credentials'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 
 import { AdsMonitorClient, type MonitorView } from './ads-monitor-client'
@@ -21,7 +21,7 @@ export default async function AdsMonitorPage() {
   const { supabase, accountId, role } = await getCurrentAccount()
 
   // A tela toda é de administração da conta; quem não pode alterar
-  // também não deve ver o estado da credencial.
+  // também não deve ver o estado das credenciais.
   if (!hasMinRole(role, 'admin')) redirect('/dashboard')
 
   const [{ data: monitors }, { data: contacts }] = await Promise.all([
@@ -52,12 +52,13 @@ export default async function AdsMonitorPage() {
     stateByMonitor.set(String(state.monitor_id), state)
   }
 
-  // O service role lê a credencial porque o segredo mora numa tabela
+  // O service role lê os portfólios porque o token mora numa tabela
   // sem policy; só os metadados atravessam para o componente.
-  const credential = await loadAdPlatformCredential(supabaseAdmin(), accountId)
+  const credentials = await listAdPlatformCredentials(supabaseAdmin(), accountId)
 
   const views: MonitorView[] = rows.map((row) => ({
     id: String(row.id),
+    credentialId: (row.credential_id as string | null) ?? null,
     externalAccountId: String(row.external_account_id),
     displayName: (row.display_name as string | null) ?? null,
     contactId: (row.contact_id as string | null) ?? null,
@@ -94,7 +95,7 @@ export default async function AdsMonitorPage() {
         name: (contact.name as string | null) ?? null,
         phone: (contact.phone as string | null) ?? null,
       }))}
-      credential={credential}
+      credentials={credentials}
     />
   )
 }

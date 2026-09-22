@@ -36,6 +36,7 @@ export interface MonitorState {
 
 export interface MonitorView {
   id: string
+  credentialId: string | null
   externalAccountId: string
   displayName: string | null
   contactId: string | null
@@ -56,17 +57,23 @@ export interface ContactOption {
 
 export interface CredentialView {
   id: string
-  label: string | null
+  label: string
   businessId: string | null
   internalNotifyPhone: string | null
   lastVerifiedAt: string | null
   lastVerifyError: string | null
 }
 
+interface MetaAdAccountOption {
+  externalAccountId: string
+  name: string | null
+  currency: string | null
+}
+
 interface Props {
   monitors: MonitorView[]
   contacts: ContactOption[]
-  credential: CredentialView | null
+  credentials: CredentialView[]
 }
 
 function money(cents: number, currency: string): string {
@@ -87,17 +94,19 @@ function contactLabel(contact: ContactOption): string {
 const SELECT_CLASS =
   'border-input bg-background h-8 w-full rounded-md border px-2 text-sm'
 
-export function AdsMonitorClient({ monitors, contacts, credential }: Props) {
+type Submit = (
+  url: string,
+  init: RequestInit,
+  successMessage: string,
+) => Promise<boolean>
+
+export function AdsMonitorClient({ monitors, contacts, credentials }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
-  async function call(
-    url: string,
-    init: RequestInit,
-    successMessage: string,
-  ): Promise<boolean> {
+  const call: Submit = async (url, init, successMessage) => {
     setError(null)
     setNotice(null)
     const response = await fetch(url, {
@@ -106,13 +115,17 @@ export function AdsMonitorClient({ monitors, contacts, credential }: Props) {
     })
     const body = await response.json().catch(() => ({}))
     if (!response.ok) {
-      setError(typeof body.error === 'string' ? body.error : 'Não foi possível concluir.')
+      setError(
+        typeof body.error === 'string' ? body.error : 'Não foi possível concluir.',
+      )
       return false
     }
     setNotice(successMessage)
     startTransition(() => router.refresh())
     return true
   }
+
+  const byCredential = new Map(credentials.map((c) => [c.id, c]))
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4 sm:p-6">
@@ -135,13 +148,33 @@ export function AdsMonitorClient({ monitors, contacts, credential }: Props) {
         </p>
       ) : null}
 
-      <CredentialCard credential={credential} onSubmit={call} pending={pending} />
+      <Card>
+        <CardHeader>
+          <CardTitle>Portfólios conectados</CardTitle>
+          <CardDescription>
+            Cada portfólio empresarial da Meta tem o seu próprio token de
+            usuário de sistema — o usuário de um portfólio não enxerga as
+            contas do outro. O número interno da cópia também é por portfólio.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {credentials.map((credential) => (
+            <PortfolioRow
+              key={credential.id}
+              credential={credential}
+              onSubmit={call}
+              pending={pending}
+            />
+          ))}
+          <AddPortfolioForm onSubmit={call} pending={pending} />
+        </CardContent>
+      </Card>
 
       <NewMonitorCard
         contacts={contacts}
+        credentials={credentials}
         onSubmit={call}
         pending={pending}
-        disabled={credential === null}
       />
 
       <Card>
@@ -159,6 +192,12 @@ export function AdsMonitorClient({ monitors, contacts, credential }: Props) {
               key={monitor.id}
               monitor={monitor}
               contacts={contacts}
+              credentials={credentials}
+              credentialLabel={
+                monitor.credentialId
+                  ? (byCredential.get(monitor.credentialId)?.label ?? null)
+                  : null
+              }
               onSubmit={call}
               pending={pending}
             />
@@ -169,129 +208,305 @@ export function AdsMonitorClient({ monitors, contacts, credential }: Props) {
   )
 }
 
-type Submit = (
-  url: string,
-  init: RequestInit,
-  successMessage: string,
-) => Promise<boolean>
-
-function CredentialCard({
+function PortfolioRow({
   credential,
   onSubmit,
   pending,
 }: {
-  credential: CredentialView | null
+  credential: CredentialView
   onSubmit: Submit
   pending: boolean
 }) {
+  const [label, setLabel] = useState(credential.label)
+  const [phone, setPhone] = useState(credential.internalNotifyPhone ?? '')
   const [token, setToken] = useState('')
-  const [phone, setPhone] = useState(credential?.internalNotifyPhone ?? '')
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Acesso à Meta</CardTitle>
-        <CardDescription>
-          Token de usuário de sistema do seu Business Manager, com permissão
-          de leitura de anúncios. Ele é guardado criptografado e nunca volta
-          para esta tela.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 rounded-lg border p-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="ads-token">
-            Token {credential ? '(deixe em branco para manter o atual)' : ''}
-          </Label>
+          <Label htmlFor={`label-${credential.id}`}>Nome do portfólio</Label>
           <Input
-            id="ads-token"
-            type="password"
-            autoComplete="off"
-            value={token}
-            onChange={(event) => setToken(event.target.value)}
-            placeholder="EAAG..."
+            id={`label-${credential.id}`}
+            value={label}
+            onChange={(event) => setLabel(event.target.value)}
           />
         </div>
-
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="ads-internal-phone">Número interno da cópia</Label>
+          <Label htmlFor={`phone-${credential.id}`}>Número interno da cópia</Label>
           <Input
-            id="ads-internal-phone"
+            id={`phone-${credential.id}`}
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
             placeholder="+5511999999999"
           />
         </div>
+      </div>
 
-        {credential?.lastVerifiedAt ? (
-          <p className="text-muted-foreground text-xs">
-            Última validação:{' '}
-            {new Date(credential.lastVerifiedAt).toLocaleString('pt-BR')}
-          </p>
-        ) : null}
-        {credential?.lastVerifyError ? (
-          <p className="text-destructive text-xs">{credential.lastVerifyError}</p>
-        ) : null}
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={`token-${credential.id}`}>
+          Trocar token (deixe em branco para manter o atual)
+        </Label>
+        <Input
+          id={`token-${credential.id}`}
+          type="password"
+          autoComplete="off"
+          value={token}
+          onChange={(event) => setToken(event.target.value)}
+          placeholder="EAAG..."
+        />
+      </div>
 
-        <div>
-          <Button
-            disabled={pending}
-            onClick={async () => {
-              const ok = await onSubmit(
-                '/api/ads/credentials',
-                {
-                  method: 'PUT',
-                  body: JSON.stringify({
-                    access_token: token,
-                    internal_notify_phone: phone,
-                  }),
-                },
-                'Acesso salvo.',
-              )
-              if (ok) setToken('')
-            }}
-          >
-            Salvar acesso
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      {credential.lastVerifiedAt ? (
+        <p className="text-muted-foreground text-xs">
+          Última validação:{' '}
+          {new Date(credential.lastVerifiedAt).toLocaleString('pt-BR')}
+        </p>
+      ) : null}
+      {credential.lastVerifyError ? (
+        <p className="text-destructive text-xs">{credential.lastVerifyError}</p>
+      ) : null}
+
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          disabled={pending}
+          onClick={async () => {
+            const ok = await onSubmit(
+              `/api/ads/credentials/${credential.id}`,
+              {
+                method: 'PATCH',
+                body: JSON.stringify({
+                  label,
+                  internal_notify_phone: phone,
+                  access_token: token,
+                }),
+              },
+              'Portfólio atualizado.',
+            )
+            if (ok) setToken('')
+          }}
+        >
+          Salvar
+        </Button>
+        <Button
+          size="sm"
+          variant="destructive"
+          disabled={pending}
+          onClick={() =>
+            onSubmit(
+              `/api/ads/credentials/${credential.id}`,
+              { method: 'DELETE' },
+              'Portfólio desconectado.',
+            )
+          }
+        >
+          Desconectar
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function AddPortfolioForm({
+  onSubmit,
+  pending,
+}: {
+  onSubmit: Submit
+  pending: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const [label, setLabel] = useState('')
+  const [token, setToken] = useState('')
+  const [phone, setPhone] = useState('')
+
+  if (!open) {
+    return (
+      <div>
+        <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+          Conectar outro portfólio
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-dashed p-3">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="new-portfolio-label">Nome do portfólio</Label>
+        <Input
+          id="new-portfolio-label"
+          value={label}
+          onChange={(event) => setLabel(event.target.value)}
+          placeholder="Agência — clientes A"
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="new-portfolio-token">Token de usuário de sistema</Label>
+        <Input
+          id="new-portfolio-token"
+          type="password"
+          autoComplete="off"
+          value={token}
+          onChange={(event) => setToken(event.target.value)}
+          placeholder="EAAG..."
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="new-portfolio-phone">Número interno da cópia</Label>
+        <Input
+          id="new-portfolio-phone"
+          value={phone}
+          onChange={(event) => setPhone(event.target.value)}
+          placeholder="+5511999999999"
+        />
+      </div>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          disabled={pending}
+          onClick={async () => {
+            const ok = await onSubmit(
+              '/api/ads/credentials',
+              {
+                method: 'POST',
+                body: JSON.stringify({
+                  label,
+                  access_token: token,
+                  internal_notify_phone: phone,
+                }),
+              },
+              'Portfólio conectado.',
+            )
+            if (ok) {
+              setLabel('')
+              setToken('')
+              setPhone('')
+              setOpen(false)
+            }
+          }}
+        >
+          Conectar
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+          Cancelar
+        </Button>
+      </div>
+    </div>
   )
 }
 
 function NewMonitorCard({
   contacts,
+  credentials,
   onSubmit,
   pending,
-  disabled,
 }: {
   contacts: ContactOption[]
+  credentials: CredentialView[]
   onSubmit: Submit
   pending: boolean
-  disabled: boolean
 }) {
+  const [credentialId, setCredentialId] = useState('')
   const [adAccountId, setAdAccountId] = useState('')
   const [contactId, setContactId] = useState('')
   const [threshold, setThreshold] = useState('100')
+  const [options, setOptions] = useState<MetaAdAccountOption[] | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [listError, setListError] = useState<string | null>(null)
+
+  const disabled = credentials.length === 0
+
+  async function loadAccounts(id: string) {
+    setLoading(true)
+    setListError(null)
+    setOptions(null)
+    try {
+      const response = await fetch(`/api/ads/credentials/${id}/ad-accounts`)
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        setListError(
+          typeof body.error === 'string'
+            ? body.error
+            : 'Não foi possível listar as contas.',
+        )
+        return
+      }
+      setOptions(body.ad_accounts ?? [])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Adicionar conta</CardTitle>
+        <CardTitle>Adicionar conta de anúncio</CardTitle>
         <CardDescription>
           {disabled
-            ? 'Salve o acesso à Meta antes de cadastrar contas.'
-            : 'Informe a conta de anúncio e o cliente que recebe o aviso.'}
+            ? 'Conecte um portfólio antes de cadastrar contas.'
+            : 'Escolha o portfólio, a conta e o cliente que recebe o aviso.'}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
+          <Label htmlFor="ads-credential">Portfólio</Label>
+          <select
+            id="ads-credential"
+            className={SELECT_CLASS}
+            value={credentialId}
+            onChange={(event) => {
+              setCredentialId(event.target.value)
+              setOptions(null)
+              setAdAccountId('')
+              if (event.target.value) void loadAccounts(event.target.value)
+            }}
+          >
+            <option value="">Selecione…</option>
+            {credentials.map((credential) => (
+              <option key={credential.id} value={credential.id}>
+                {credential.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
           <Label htmlFor="ads-account-id">Conta de anúncio</Label>
-          <Input
-            id="ads-account-id"
-            value={adAccountId}
-            onChange={(event) => setAdAccountId(event.target.value)}
-            placeholder="act_1234567890"
-          />
+          {loading ? (
+            <p className="text-muted-foreground text-sm">Buscando contas…</p>
+          ) : null}
+          {options && options.length > 0 ? (
+            <select
+              id="ads-account-id"
+              className={SELECT_CLASS}
+              value={adAccountId}
+              onChange={(event) => setAdAccountId(event.target.value)}
+            >
+              <option value="">Selecione…</option>
+              {options.map((option) => (
+                <option
+                  key={option.externalAccountId}
+                  value={option.externalAccountId}
+                >
+                  {option.name ?? `act_${option.externalAccountId}`} ·{' '}
+                  {option.externalAccountId}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <Input
+              id="ads-account-id"
+              value={adAccountId}
+              onChange={(event) => setAdAccountId(event.target.value)}
+              placeholder="act_1234567890"
+            />
+          )}
+          {listError ? (
+            <p className="text-muted-foreground text-xs">
+              {listError} Você ainda pode informar o identificador na mão.
+            </p>
+          ) : null}
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -312,7 +527,9 @@ function NewMonitorCard({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="ads-threshold">Avisar quando o saldo ficar abaixo de</Label>
+          <Label htmlFor="ads-threshold">
+            Avisar quando o saldo ficar abaixo de
+          </Label>
           <Input
             id="ads-threshold"
             inputMode="decimal"
@@ -334,6 +551,7 @@ function NewMonitorCard({
                 {
                   method: 'POST',
                   body: JSON.stringify({
+                    credential_id: credentialId || null,
                     external_account_id: adAccountId,
                     contact_id: contactId || null,
                     low_balance_threshold_cents: Math.round(parsed * 100),
@@ -358,11 +576,15 @@ function NewMonitorCard({
 function MonitorRow({
   monitor,
   contacts,
+  credentials,
+  credentialLabel,
   onSubmit,
   pending,
 }: {
   monitor: MonitorView
   contacts: ContactOption[]
+  credentials: CredentialView[]
+  credentialLabel: string | null
   onSubmit: Submit
   pending: boolean
 }) {
@@ -377,17 +599,18 @@ function MonitorRow({
           </p>
           <p className="text-muted-foreground text-xs">
             act_{monitor.externalAccountId} · limite{' '}
-            {money(monitor.thresholdCents, monitor.currency)}
+            {money(monitor.thresholdCents, monitor.currency)} ·{' '}
+            {credentialLabel ?? 'sem portfólio'}
           </p>
         </div>
         <div className="text-right text-sm">
-          {state?.availableCents !== null && state !== null ? (
+          {state !== null && state.availableCents !== null ? (
             <p
               className={
                 state.lowBalanceActive ? 'text-destructive font-medium' : ''
               }
             >
-              {money(state.availableCents as number, monitor.currency)}
+              {money(state.availableCents, monitor.currency)}
             </p>
           ) : (
             <p className="text-muted-foreground">sem leitura</p>
@@ -410,7 +633,35 @@ function MonitorRow({
       ) : null}
 
       <div className="flex flex-wrap items-end gap-3">
-        <div className="flex min-w-48 flex-col gap-1">
+        <div className="flex min-w-40 flex-col gap-1">
+          <Label htmlFor={`cred-${monitor.id}`} className="text-xs">
+            Portfólio
+          </Label>
+          <select
+            id={`cred-${monitor.id}`}
+            className={SELECT_CLASS}
+            defaultValue={monitor.credentialId ?? ''}
+            onChange={(event) =>
+              onSubmit(
+                `/api/ads/accounts/${monitor.id}`,
+                {
+                  method: 'PATCH',
+                  body: JSON.stringify({ credential_id: event.target.value }),
+                },
+                'Portfólio atualizado.',
+              )
+            }
+          >
+            <option value="">Selecione…</option>
+            {credentials.map((credential) => (
+              <option key={credential.id} value={credential.id}>
+                {credential.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex min-w-40 flex-col gap-1">
           <Label htmlFor={`contact-${monitor.id}`} className="text-xs">
             Cliente avisado
           </Label>

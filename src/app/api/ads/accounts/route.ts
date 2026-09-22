@@ -83,12 +83,39 @@ export async function POST(request: Request) {
     )
   }
 
+  const credentialId =
+    typeof body.credential_id === 'string' && body.credential_id.length > 0
+      ? body.credential_id
+      : null
+  if (credentialId === null) {
+    return NextResponse.json(
+      { error: 'Escolha de qual portfólio esta conta de anúncio vem.' },
+      { status: 400 },
+    )
+  }
+
   const contactId =
     typeof body.contact_id === 'string' && body.contact_id.length > 0
       ? body.contact_id
       : null
 
   const db = supabaseAdmin()
+
+  // O portfólio tem que ser desta conta do CRM. Sem esta checagem, um
+  // id de credencial de outro locatário ligaria o monitor ao token
+  // alheio — e é o token que decide quais contas de anúncio são lidas.
+  const { data: credential } = await db
+    .from('ad_platform_credentials')
+    .select('id')
+    .eq('id', credentialId)
+    .eq('account_id', ctx.accountId)
+    .maybeSingle()
+  if (!credential) {
+    return NextResponse.json(
+      { error: 'O portfólio informado não existe nesta conta.' },
+      { status: 400 },
+    )
+  }
 
   // O contato tem que ser desta conta do CRM. A rota grava com service
   // role, que ignora RLS, então a checagem de posse é feita aqui — a
@@ -113,6 +140,7 @@ export async function POST(request: Request) {
     .insert({
       account_id: ctx.accountId,
       platform: 'meta',
+      credential_id: credentialId,
       external_account_id: externalAccountId,
       display_name:
         typeof body.display_name === 'string' && body.display_name.trim()

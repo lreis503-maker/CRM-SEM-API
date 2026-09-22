@@ -51,30 +51,54 @@ com `ENCRYPTION_KEY` na tabela `ad_platform_credential_secrets`, que não
 tem nenhuma policy de RLS — nem uma falha futura em outra tabela abre um
 caminho do navegador até ele.
 
-### 2.2 Migração
+### 2.2 Migrações
 
-Rode `supabase/migrations/047_ad_account_monitor.sql` no seu projeto
-Supabase (SQL Editor, ou `supabase db push` se você usa a CLI).
+Rode, **nesta ordem**, no SQL Editor do Supabase (ou `supabase db push`
+se você usa a CLI):
 
-Ela cria:
+1. `supabase/migrations/047_ad_account_monitor.sql`
+2. `supabase/migrations/048_ad_platform_multi_portfolio.sql`
+
+A 047 cria:
 
 | Tabela | Para quê |
 | --- | --- |
-| `ad_platform_credentials` | Metadados da credencial e o número interno da cópia. Legível pela equipe. |
+| `ad_platform_credentials` | Metadados de cada portfólio e o número interno da cópia. Legível pela equipe. |
 | `ad_platform_credential_secrets` | O token cifrado. Só service role. |
 | `ad_account_monitors` | Uma linha por conta de anúncio monitorada. |
 | `ad_account_monitor_state` | Última leitura e o estado do alerta, para não repetir aviso. |
 | `ad_account_alerts` | Histórico do que foi enviado, com o texto e o erro de entrega. |
 
+A 048 permite **vários portfólios por conta do CRM**. Ela torna o
+rótulo obrigatório, remove a unicidade que limitava a um portfólio e
+adiciona `ad_account_monitors.credential_id`, ligando cada conta de
+anúncio ao portfólio cujo token a lê.
+
+Ambas são seguras de rodar mais de uma vez.
+
 ### 2.3 Na tela
 
 Abra `/ads-monitor` (a página ainda não está no menu lateral — veja a
-seção 7), cole o token, informe o número interno da cópia e cadastre
-cada conta de anúncio com o cliente que recebe o aviso e o limite.
+seção 7).
+
+**Conecte um portfólio por vez.** Cada portfólio empresarial da Meta
+precisa do seu próprio token de usuário de sistema: o usuário de um
+portfólio não enxerga as contas de anúncio do outro. Dê um nome que
+você reconheça, cole o token e informe o número interno que recebe as
+cópias daquele portfólio — cada um pode avisar uma pessoa diferente.
 
 O token é validado contra a Meta **antes** de ser gravado. Um token que
 não funciona é recusado na hora, em vez de virar erro silencioso em todo
 ciclo de verificação.
+
+Depois, em "Adicionar conta de anúncio", escolha o portfólio. A tela
+busca as contas que aquele token enxerga e oferece a lista — você não
+precisa copiar identificador na mão. Se a busca falhar, o campo aceita
+o identificador digitado.
+
+Para desconectar um portfólio, remova antes as contas ligadas a ele. A
+remoção é recusada enquanto houver alguma, para uma desconexão não
+apagar monitores em silêncio.
 
 ### 2.4 Agendador
 
@@ -164,21 +188,25 @@ O cliente **nunca** é avisado de falha de leitura: não é problema dele.
 
 ```
 supabase/migrations/047_ad_account_monitor.sql
+supabase/migrations/048_ad_platform_multi_portfolio.sql
 
 src/lib/ads/
   meta-ads-errors.ts        erros tipados, classificação, redação do corpo
   meta-ads-client.ts        cliente somente-leitura da Marketing API
   account-health.ts         a regra (função pura)
   alert-message.ts          os textos, cliente e interno
-  credentials.ts            token cifrado, leitura e gravação
+  credentials.ts            portfólios e tokens cifrados
+  internal-phone.ts         validação do número da cópia interna
   monitor-runner.ts         o ciclo: ler, decidir, enviar, gravar
 
 src/app/api/ads/
-  credentials/route.ts      GET metadados · PUT salvar · POST listar contas
-  accounts/route.ts         GET listar · POST cadastrar
-  accounts/[id]/route.ts    PATCH · DELETE
-  monitor/cron/route.ts     GET, protegida por segredo compartilhado
-  monitor/run/route.ts      POST, o "verificar agora" da tela
+  credentials/route.ts                    GET listar · POST conectar
+  credentials/[id]/route.ts               PATCH · DELETE
+  credentials/[id]/ad-accounts/route.ts   GET, contas que o token enxerga
+  accounts/route.ts                       GET listar · POST cadastrar
+  accounts/[id]/route.ts                  PATCH · DELETE
+  monitor/cron/route.ts                   GET, protegida por segredo
+  monitor/run/route.ts                    POST, o "verificar agora" da tela
 
 src/app/(dashboard)/ads-monitor/
   page.tsx                  servidor: carrega dados iniciais
@@ -187,7 +215,23 @@ src/app/(dashboard)/ads-monitor/
 
 Testes: `account-health.test.ts`, `meta-ads-client.test.ts`,
 `alert-message.test.ts`, `monitor-runner.test.ts` e
-`api/ads/monitor/cron/route.test.ts` — 91 casos no total.
+`api/ads/monitor/cron/route.test.ts` — 94 casos no total.
+
+## 4.1 O que o cliente recebe
+
+O aviso de saldo diz só que o saldo ficou abaixo do limite:
+
+> Oi, Ana! O saldo da conta de anúncios **Loja da Ana** está abaixo de
+> R$ 100,00.
+
+Sem o saldo exato, de propósito: o número já estará velho quando a
+pessoa abrir o Gerenciador de Anúncios, e uma mensagem de WhatsApp pode
+ser encaminhada. O valor exato vai na cópia interna, junto do
+identificador da conta, porque quem lê ali vai agir sobre ele.
+
+Para mudar qualquer um desses textos, o arquivo é
+`src/lib/ads/alert-message.ts` — ele existe separado da regra
+justamente porque muda por outro motivo.
 
 ---
 
@@ -210,14 +254,16 @@ Testes: `account-health.test.ts`, `meta-ads-client.test.ts`,
 ## 6. Diagnóstico
 
 ```sql
--- O que o CRM enxerga de cada conta agora
-select m.external_account_id, m.display_name,
+-- O que o CRM enxerga de cada conta agora, por portfólio
+select c.label as portfolio,
+       m.external_account_id, m.display_name,
        s.available_cents, s.currency, s.account_status,
        s.low_balance_active, s.payment_issue_code,
        s.checked_at, s.consecutive_failures, s.last_error
 from ad_account_monitors m
 left join ad_account_monitor_state s on s.monitor_id = m.id
-order by m.created_at;
+left join ad_platform_credentials c on c.id = m.credential_id
+order by c.label, m.created_at;
 
 -- Avisos recentes e se chegaram
 select created_at, kind, reason_code, delivery_status,
@@ -231,7 +277,9 @@ limit 50;
 | --- | --- |
 | `delivery_status = 'skipped'` | Monitor sem contato vinculado e sem número interno |
 | `client_error` falando de janela/template | Conta na API oficial da Meta — veja a seção 7 |
-| `last_error` sobre token | Token expirou ou perdeu `ads_read` |
+| `last_error` sobre token | Token daquele portfólio expirou ou perdeu `ads_read` |
+| `last_error` falando de portfólio | Conta sem portfólio escolhido — abra a tela e selecione |
+| Uma conta some da lista de "Buscar contas" | O usuário de sistema daquele portfólio não tem acesso a ela |
 | `available_cents` nulo sempre | Conta pós-paga sem limite de gastos: só a regra de cobrança se aplica |
 | Nenhum alerta e `checked_at` antigo | O agendador não está chamando a rota |
 

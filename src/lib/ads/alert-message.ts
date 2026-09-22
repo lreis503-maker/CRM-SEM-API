@@ -104,23 +104,19 @@ export function buildClientMessage(
   kind: AlertKind,
   context: AlertMessageContext
 ): string {
-  const { accountLabel, currency, availableCents, thresholdCents } = context;
+  const { accountLabel, currency, thresholdCents } = context;
   const hello = greeting(context.contactName);
 
   switch (kind) {
-    case 'low_balance': {
-      const saldo =
-        availableCents === null
-          ? 'está acabando'
-          : `está em ${formatMoney(availableCents, currency)}`;
+    case 'low_balance':
+      // Só o limite, nunca o saldo exato. Quem recebe precisa saber que
+      // chegou a hora de repor; o número de agora já estará velho quando
+      // a pessoa abrir o Gerenciador, e expor o caixa da conta numa
+      // mensagem que pode ser encaminhada não traz nada em troca.
       return (
-        `${hello}Passando um aviso rápido: o saldo da conta de anúncios ` +
-        `*${accountLabel}* ${saldo}, abaixo do limite de ` +
-        `${formatMoney(thresholdCents, currency)} que combinamos.\n\n` +
-        'Vale adicionar saldo para os anúncios não pararem no meio do dia. ' +
-        'Qualquer dúvida é só responder por aqui.'
+        `${hello}O saldo da conta de anúncios *${accountLabel}* está ` +
+        `abaixo de ${formatMoney(thresholdCents, currency)}.`
       );
-    }
 
     case 'payment_stopped': {
       const motivo = isPaymentIssueCode(context.reasonCode)
@@ -136,11 +132,10 @@ export function buildClientMessage(
     }
 
     case 'balance_recovered':
+      // Mesma regra do aviso de saldo baixo: sem o número.
       return (
         `${hello}Tudo certo: o saldo da conta de anúncios *${accountLabel}* ` +
-        `foi reposto e já está em ` +
-        `${availableCents === null ? 'nível normal' : formatMoney(availableCents, currency)}. ` +
-        'Os anúncios seguem rodando normalmente.'
+        'foi reposto e os anúncios seguem rodando normalmente.'
       );
 
     case 'payment_recovered':

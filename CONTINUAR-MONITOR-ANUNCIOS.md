@@ -163,3 +163,73 @@ aplica as migrações a ordem entre essas duas pode ficar indefinida.
 Vale renomear uma delas antes que uma terceira apareça.
 
 A migração nova é a `047`, sem conflito.
+
+---
+
+# Atualização — 2026-09-22, tarde
+
+A integração foi validada ao vivo: o primeiro alerta de saldo baixo
+chegou no WhatsApp do cliente pelo CRM. Duas mudanças pedidas depois
+disso já estão implementadas.
+
+## 1. Mensagem do cliente encurtada
+
+O aviso de saldo agora diz apenas que o saldo ficou abaixo do limite,
+sem o saldo exato e sem o parágrafo de orientação:
+
+> Oi, Ana! O saldo da conta de anúncios **Loja da Ana** está abaixo de
+> R$ 100,00.
+
+O aviso de normalização seguiu a mesma regra. A cópia interna continua
+com o valor exato e o identificador da conta — quem lê ali vai agir
+sobre o número.
+
+Arquivo: `src/lib/ads/alert-message.ts`.
+
+## 2. Vários portfólios empresariais por conta do CRM
+
+A 047 assumia um portfólio por conta. O usuário tem dois, com quatro
+contas de anúncio cada, e o usuário de sistema de um portfólio não
+enxerga as contas do outro — então são dois tokens.
+
+Migração nova: `supabase/migrations/048_ad_platform_multi_portfolio.sql`.
+
+- `ad_platform_credentials.label` vira obrigatório e é o nome do
+  portfólio, único por conta do CRM;
+- a unicidade `(account_id, platform)` foi removida;
+- `ad_account_monitors.credential_id` liga cada conta de anúncio ao
+  portfólio que a lê, com `ON DELETE RESTRICT`.
+
+O backfill atribui as linhas existentes ao único portfólio da conta e
+só aplica `NOT NULL` se nenhuma linha ficar órfã — uma conta sem
+credencial não derruba a migração, o runner pula o monitor e grava o
+motivo.
+
+Mudanças de código:
+
+- `credentials.ts` passou a listar, criar, editar e remover portfólios,
+  e a devolver o token por `credential_id`;
+- `monitor-runner.ts` agrupa por portfólio: decifra cada token uma vez
+  por ciclo e usa o número interno daquele portfólio;
+- rotas novas `credentials/[id]` e `credentials/[id]/ad-accounts`;
+- `internal-phone.ts` saiu da rota porque arquivo de rota do Next só
+  pode exportar handlers HTTP;
+- a tela ganhou gestão de portfólios e escolhe as contas de anúncio a
+  partir da lista que o token enxerga.
+
+## Verificação
+
+94 testes passando e `tsc --noEmit` limpo, no mesmo ambiente isolado.
+Continua sem rodar a suíte completa do repositório nem o lint.
+
+## Para aplicar
+
+1. `git add` dos arquivos novos e alterados, commit e push;
+2. rodar a `048` no SQL Editor do Supabase;
+3. abrir `/ads-monitor`, renomear o portfólio existente, conectar o
+   segundo e conferir se cada conta ficou no portfólio certo.
+
+O passo 3 importa: as contas que já existiam foram atribuídas ao
+portfólio antigo pelo backfill. As do segundo portfólio precisam ser
+cadastradas, e qualquer conta que tenha ficado no portfólio errado
+falha na leitura com erro de permissão até ser corrigida na tela.

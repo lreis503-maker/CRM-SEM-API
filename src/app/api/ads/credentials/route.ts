@@ -3,18 +3,16 @@ import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import {
-  loadAdPlatformCredential,
-  loadAdPlatformCredentialWithToken,
+  listAdPlatformCredentials,
   recordCredentialVerification,
   saveAdPlatformCredential,
 } from '@/lib/ads/credentials'
+import { parseInternalPhone } from '@/lib/ads/internal-phone'
 import { createMetaAdsClient } from '@/lib/ads/meta-ads-client'
 import { MetaAdsClientError } from '@/lib/ads/meta-ads-errors'
-import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
 
 /**
- * Token de usuário de sistema do Business Manager e número interno de
- * cópia.
+ * Portfólios empresariais conectados.
  *
  * O GET devolve só metadados — nunca o token, nem mascarado. Um token
  * mascarado ainda é informação sobre um segredo e não serve para nada
@@ -23,17 +21,18 @@ import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
 export async function GET() {
   try {
     const { accountId } = await requireRole('admin')
-    const credential = await loadAdPlatformCredential(supabaseAdmin(), accountId)
-    return NextResponse.json({
-      credential,
-      configured: credential !== null,
-    })
+    const credentials = await listAdPlatformCredentials(
+      supabaseAdmin(),
+      accountId,
+    )
+    return NextResponse.json({ credentials })
   } catch (error) {
     return toErrorResponse(error)
   }
 }
 
-export async function PUT(request: Request) {
+/** Conecta um portfólio novo. */
+export async function POST(request: Request) {
   let ctx
   try {
     ctx = await requireRole('admin')
@@ -46,93 +45,71 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
   }
 
-  const accessToken =
-    typeof body.access_token === 'string' ? body.access_token.trim() : ''
-  const label = typeof body.label === 'string' ? body.label.trim() : null
-  const businessId =
-    typeof body.business_id === 'string' ? body.business_id.trim() : null
-
-  let internalNotifyPhone: string | null | undefined
-  if (body.internal_notify_phone === null || body.internal_notify_phone === '') {
-    internalNotifyPhone = null
-  } else if (typeof body.internal_notify_phone === 'string') {
-    const sanitized = sanitizePhoneForMeta(body.internal_notify_phone)
-    if (!isValidE164(sanitized)) {
-      return NextResponse.json(
-        {
-          error:
-            'O número interno deve estar no formato internacional, por exemplo +5511999999999',
-        },
-        { status: 400 },
-      )
-    }
-    internalNotifyPhone = sanitized
+  const label = typeof body.label === 'string' ? body.label.trim() : ''
+  if (!label) {
+    return NextResponse.json(
+      { error: 'Dê um nome ao portfólio para distinguir um do outro.' },
+      { status: 400 },
+    )
   }
 
-  const db = supabaseAdmin()
+  const accessToken =
+    typeof body.access_token === 'string' ? body.access_token.trim() : ''
+  if (!accessToken) {
+    return NextResponse.json(
+      { error: 'Cole o token de usuário de sistema deste portfólio.' },
+      { status: 400 },
+    )
+  }
+
+  const phone = parseInternalPhone(body.internal_notify_phone)
+  if (phone === 'invalid') {
+    return NextResponse.json(
+      {
+        error:
+          'O número interno deve estar no formato internacional, por exemplo +5511999999999',
+      },
+      { status: 400 },
+    )
+  }
 
   // Um token só é gravado depois de provar que funciona. Gravar
   // primeiro e validar depois deixaria a conta num estado em que o
   // ciclo roda, falha em todo monitor e enche o WhatsApp da equipe.
-  if (accessToken.length > 0) {
-    try {
-      await createMetaAdsClient({ accessToken }).listAdAccounts(1)
-    } catch (error) {
-      const message =
-        error instanceof MetaAdsClientError
-          ? error.humanMessage
-          : 'Não foi possível validar o token com a Meta.'
-      return NextResponse.json({ error: message }, { status: 400 })
-    }
+  try {
+    await createMetaAdsClient({ accessToken }).listAdAccounts(1)
+  } catch (error) {
+    const message =
+      error instanceof MetaAdsClientError
+        ? error.humanMessage
+        : 'Não foi possível validar o token com a Meta.'
+    return NextResponse.json({ error: message }, { status: 400 })
   }
+
+  const db = supabaseAdmin()
 
   try {
     const credential = await saveAdPlatformCredential(db, {
       accountId: ctx.accountId,
-      accessToken: accessToken.length > 0 ? accessToken : undefined,
       label,
-      businessId,
-      internalNotifyPhone,
+      accessToken,
+      businessId:
+        typeof body.business_id === 'string' ? body.business_id.trim() : null,
+      internalNotifyPhone: phone,
     })
+    await recordCredentialVerification(db, credential.id, { ok: true })
 
-    if (accessToken.length > 0) {
-      await recordCredentialVerification(db, credential.id, { ok: true })
-    }
-
-    const saved = await loadAdPlatformCredential(db, ctx.accountId)
-    return NextResponse.json({ credential: saved, configured: saved !== null })
+    const credentials = await listAdPlatformCredentials(db, ctx.accountId)
+    return NextResponse.json({ credentials }, { status: 201 })
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    return NextResponse.json({ error: message }, { status: 500 })
-  }
-}
-
-/**
- * Contas de anúncio que o token enxerga, para a tela oferecer uma
- * lista em vez de pedir que a pessoa cole o id na mão.
- */
-export async function POST() {
-  try {
-    const { accountId } = await requireRole('admin')
-    const db = supabaseAdmin()
-    const credential = await loadAdPlatformCredentialWithToken(db, accountId)
-    if (credential === null) {
+    // 23505 = já existe um portfólio com esse nome nesta conta.
+    if ((error as { code?: string }).code === '23505') {
       return NextResponse.json(
-        { error: 'Configure o token do Business Manager primeiro.' },
+        { error: 'Já existe um portfólio com esse nome.' },
         { status: 409 },
       )
     }
-
-    const accounts = await createMetaAdsClient({
-      accessToken: credential.accessToken,
-    }).listAdAccounts(200)
-
-    await recordCredentialVerification(db, credential.id, { ok: true })
-    return NextResponse.json({ ad_accounts: accounts })
-  } catch (error) {
-    if (error instanceof MetaAdsClientError) {
-      return NextResponse.json({ error: error.humanMessage }, { status: 502 })
-    }
-    return toErrorResponse(error)
+    const message = error instanceof Error ? error.message : String(error)
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

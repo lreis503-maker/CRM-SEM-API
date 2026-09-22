@@ -97,6 +97,7 @@ function baseFixtures(
       {
         id: 'mon-1',
         account_id: 'acc-1',
+        credential_id: 'cred-1',
         platform: 'meta',
         enabled: true,
         external_account_id: '1234567890',
@@ -149,10 +150,12 @@ function snapshot(
   };
 }
 
+// O parâmetro é declarado mesmo sem ser usado porque é ele que os
+// testes inspecionam: qual token foi entregue a qual leitura.
 function clientReturning(
   value: MetaAdAccountSnapshot | Error
-): () => MetaAdsClient {
-  return () =>
+): (accessToken: string) => MetaAdsClient {
+  return (_accessToken: string) =>
     ({
       readAdAccount: async () => {
         if (value instanceof Error) throw value;
@@ -209,9 +212,16 @@ describe('runAdAccountMonitors', () => {
     expect(sendToContact).toHaveBeenCalledOnce();
     expect(sendToPhone).toHaveBeenCalledOnce();
 
-    // A mensagem do cliente fala de saldo; a interna traz o id da conta.
-    expect(sendToContact.mock.calls[0][0].text).toMatch(/87,50/);
-    expect(sendToPhone.mock.calls[0][0].text).toContain('act_1234567890');
+    // O cliente recebe o limite; o saldo exato e o id da conta ficam
+    // na cópia interna.
+    const clientText = sendToContact.mock.calls[0][0].text;
+    expect(clientText).toMatch(/100,00/);
+    expect(clientText).not.toMatch(/87,50/);
+    expect(clientText).not.toContain('act_');
+
+    const internalText = sendToPhone.mock.calls[0][0].text;
+    expect(internalText).toContain('act_1234567890');
+    expect(internalText).toMatch(/87,50/);
 
     const state = writes.find(
       (write) => write.table === 'ad_account_monitor_state'
@@ -381,7 +391,7 @@ describe('runAdAccountMonitors', () => {
     }
   });
 
-  it('não lê nada quando a conta do CRM ainda não tem token', async () => {
+  it('não lê nada quando o portfólio ainda não tem token', async () => {
     const { db } = fakeDb(
       baseFixtures({
         ad_platform_credential_secrets: [],
@@ -402,7 +412,34 @@ describe('runAdAccountMonitors', () => {
     expect(sendToPhone).not.toHaveBeenCalled();
   });
 
-  it('decifra o token uma vez só por conta do CRM', async () => {
+  it('pula a conta que ainda não tem portfólio escolhido', async () => {
+    const fixtures = baseFixtures();
+    fixtures.ad_account_monitors[0].credential_id = null;
+    const { db, writes } = fakeDb(fixtures);
+    const createClient = vi.fn();
+
+    const result = await runAdAccountMonitors(
+      db,
+      {},
+      {
+        now: NOW,
+        createClient,
+        sendToContact: vi.fn(),
+        sendToPhone: vi.fn(),
+      }
+    );
+
+    expect(result.failures).toBe(1);
+    expect(createClient).not.toHaveBeenCalled();
+    const state = writes.find(
+      (write) => write.table === 'ad_account_monitor_state'
+    );
+    expect(state?.payload).toMatchObject({
+      last_error: expect.stringContaining('portfólio'),
+    });
+  });
+
+  it('decifra o token uma vez só por portfólio', async () => {
     const fixtures = baseFixtures();
     fixtures.ad_account_monitors.push({
       ...fixtures.ad_account_monitors[0],
@@ -420,6 +457,52 @@ describe('runAdAccountMonitors', () => {
 
     expect(createClient).toHaveBeenCalledTimes(2);
     expect(createClient).toHaveBeenCalledWith('TOKEN-DO-BM');
+  });
+
+  it('usa o token do portfólio de cada conta', async () => {
+    const fixtures = baseFixtures();
+    fixtures.ad_platform_credentials.push({
+      id: 'cred-2',
+      account_id: 'acc-1',
+      platform: 'meta',
+      label: 'Segundo portfólio',
+      business_id: null,
+      internal_notify_phone: '+5511900001111',
+      last_verified_at: null,
+      last_verify_error: null,
+    });
+    fixtures.ad_platform_credential_secrets.push({
+      credential_id: 'cred-2',
+      access_token: encrypt('TOKEN-DO-OUTRO-BM'),
+    });
+    fixtures.ad_account_monitors.push({
+      ...fixtures.ad_account_monitors[0],
+      id: 'mon-2',
+      credential_id: 'cred-2',
+      external_account_id: '999',
+      contact_id: null,
+    });
+
+    const { db } = fakeDb(fixtures);
+    const createClient = vi.fn(clientReturning(snapshot({ balanceCents: 10 })));
+    const sendToPhone = vi.fn();
+
+    await runAdAccountMonitors(
+      db,
+      {},
+      { now: NOW, createClient, sendToContact: vi.fn(), sendToPhone }
+    );
+
+    expect(createClient.mock.calls.map((call) => call[0])).toEqual([
+      'TOKEN-DO-BM',
+      'TOKEN-DO-OUTRO-BM',
+    ]);
+
+    // Cada portfólio avisa o seu próprio número interno.
+    expect(sendToPhone.mock.calls.map((call) => call[0].phone)).toEqual([
+      '+5511988887777',
+      '+5511900001111',
+    ]);
   });
 
   it('não avisa o cliente quando o monitor só tem cópia interna', async () => {

@@ -47,6 +47,32 @@ export async function PATCH(
     patch.cooldown_hours = Math.min(Math.max(Math.trunc(parsed), 0), 720)
   }
 
+  if (body.credential_id !== undefined) {
+    const credentialId =
+      typeof body.credential_id === 'string' && body.credential_id.length > 0
+        ? body.credential_id
+        : null
+    if (credentialId === null) {
+      return NextResponse.json(
+        { error: 'Escolha de qual portfólio esta conta de anúncio vem.' },
+        { status: 400 },
+      )
+    }
+    const { data: credential } = await db
+      .from('ad_platform_credentials')
+      .select('id')
+      .eq('id', credentialId)
+      .eq('account_id', ctx.accountId)
+      .maybeSingle()
+    if (!credential) {
+      return NextResponse.json(
+        { error: 'O portfólio informado não existe nesta conta.' },
+        { status: 400 },
+      )
+    }
+    patch.credential_id = credentialId
+  }
+
   if (body.contact_id !== undefined) {
     const contactId =
       typeof body.contact_id === 'string' && body.contact_id.length > 0
