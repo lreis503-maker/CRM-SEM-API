@@ -27,11 +27,12 @@ import {
   UserCog,
   Users,
   UsersRound,
+  Wallet,
   Workflow,
   X,
   Zap,
 } from "lucide-react";
-import type { AccountRole } from "@/lib/auth/roles";
+import { hasMinRole, type AccountRole } from "@/lib/auth/roles";
 
 // Per-role chip metadata used in the sidebar's account strip + the
 // Members tab roster. Keeping this near both consumers in a single
@@ -93,6 +94,12 @@ interface NavItem {
    */
   beta?: boolean;
   requires?: WhatsAppCapability;
+  /**
+   * Esconde a linha de quem não alcança este papel. A página em si já
+   * redireciona, mas mostrar um link que só devolve a pessoa para o
+   * painel é um convite a achar que algo quebrou.
+   */
+  minRole?: AccountRole;
 }
 
 const navItems: NavItem[] = [
@@ -105,6 +112,12 @@ const navItems: NavItem[] = [
   { href: "/automations", labelKey: "automations", icon: Zap },
   { href: "/flows", labelKey: "flows", icon: Workflow, beta: true },
   { href: "/agents", labelKey: "aiAgents", icon: Bot },
+  {
+    href: "/ads-monitor",
+    labelKey: "adsMonitor",
+    icon: Wallet,
+    minRole: "admin",
+  },
 ];
 
 const bottomNavItems = [
@@ -211,7 +224,15 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         {/* Main navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="flex flex-col gap-1">
-            {navItems.map((item) => {
+            {navItems
+              .filter(
+                (item) =>
+                  !item.minRole ||
+                  (accountRole !== null &&
+                    accountRole !== undefined &&
+                    hasMinRole(accountRole, item.minRole)),
+              )
+              .map((item) => {
               const isActive =
                 pathname === item.href ||
                 (item.href !== "/dashboard" && pathname.startsWith(item.href));

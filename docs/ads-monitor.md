@@ -18,7 +18,9 @@ qualquer outro atendimento.
   Criado em Meta Business Suite → Configurações do negócio → Usuários →
   Usuários do sistema → Gerar novo token.
 - **O WhatsApp conectado** no CRM (UAZAPI ou API oficial da Meta).
-- **Um agendador** chamando a rota de verificação de tempos em tempos.
+
+A verificação é automática: o CRM consulta as contas de hora em hora
+sozinho, sem agendador externo. Veja a seção 2.4.
 
 ### Um aviso sobre a API oficial da Meta
 
@@ -59,6 +61,7 @@ se você usa a CLI):
 1. `supabase/migrations/047_ad_account_monitor.sql`
 2. `supabase/migrations/048_ad_platform_multi_portfolio.sql`
 3. `supabase/migrations/049_ad_account_funding_display.sql`
+4. `supabase/migrations/050_ad_monitor_scheduler.sql`
 
 A 047 cria:
 
@@ -79,12 +82,18 @@ A 049 corrige a leitura de saldo: guarda o texto da forma de pagamento
 para diagnóstico e zera o estado dos alertas, porque as leituras
 anteriores foram feitas com a regra invertida (veja a seção 3).
 
-As três são seguras de rodar mais de uma vez.
+A 050 liga a verificação automática: cria a trava de instância única
+do agendador e passa o intervalo entre avisos para zero, de modo que um
+problema que dure o dia inteiro gere uma mensagem, não uma por hora.
+
+As quatro são seguras de rodar mais de uma vez.
 
 ### 2.3 Na tela
 
-Abra `/ads-monitor` (a página ainda não está no menu lateral — veja a
-seção 7).
+Abra **Contas de anúncio** no menu lateral. A linha só aparece para
+proprietário e administrador — quem não alcança esse papel seria
+devolvido ao painel pela própria página, e mostrar um link que não leva
+a lugar nenhum parece defeito.
 
 **Conecte um portfólio por vez.** Cada portfólio empresarial da Meta
 precisa do seu próprio token de usuário de sistema: o usuário de um
@@ -111,14 +120,38 @@ apagar monitores em silêncio.
 
 ### 2.4 Agendador
 
-No Railway, crie um cron que chame:
+**O CRM se vira sozinho.** Desde a 050 ele verifica as contas de hora
+em hora, sem agendador externo. O laço sobe junto com o servidor, pelo
+`register()` de `src/instrumentation.ts`, e o primeiro ciclo acontece um
+minuto depois do boot.
+
+Duas proteções contra mandar a mesma mensagem duas vezes quando há mais
+de uma instância:
+
+- **a trava no banco** (`ad_monitor_scheduler_lease`): as instâncias
+  acordam juntas, mas só uma ganha o UPDATE condicional e roda. É uma
+  concessão com prazo, não um "liberar no fim" — se a instância morrer
+  no meio do ciclo, a trava se solta sozinha em 20 minutos;
+- **o intervalo mínimo por conta**: mesmo que dois ciclos se
+  sobreponham, uma conta verificada há menos de 55 minutos é pulada.
+
+Para desligar e usar só um agendador externo:
+
+```dotenv
+ADS_MONITOR_AUTORUN=false
+```
+
+#### Agendador externo (opcional)
+
+A rota continua existindo e é o caminho certo para quem prefere um
+agendador de verdade ou roda muitas instâncias:
 
 ```bash
 curl -fsS -H "x-cron-secret: $ADS_MONITOR_CRON_SECRET" \
   "https://SEU-DOMINIO/api/ads/monitor/cron"
 ```
 
-A cada 15 minutos é um bom intervalo. A rota aceita:
+A rota aceita:
 
 - `limit` — máximo de contas por execução (padrão 100, teto 500);
 - `min_interval_minutes` — não relê uma conta verificada há menos que
@@ -194,9 +227,12 @@ da Meta é como se manda a mensagem errada para o cliente.
 
 ### Repetição
 
-- O aviso sai quando o problema **começa**.
-- Enquanto continuar igual, repete no máximo uma vez por
-  `cooldown_hours` (padrão 24; zero = avisar só na transição).
+- O aviso sai quando o problema **começa**, e só isso: `cooldown_hours`
+  vale zero por padrão, o que significa "avise na transição e pare". Um
+  saldo que fique baixo a semana inteira gera uma mensagem, não uma por
+  hora de verificação.
+- Um valor maior que zero repete o aviso no máximo uma vez por esse
+  intervalo, enquanto o problema continuar igual.
 - Se o problema **mudar de natureza** (de `unsettled` para `disabled`,
   por exemplo), avisa na hora, mesmo dentro do intervalo.
 - O aviso de normalização só sai para quem chegou a receber o alerta.
@@ -221,6 +257,7 @@ O cliente **nunca** é avisado de falha de leitura: não é problema dele.
 supabase/migrations/047_ad_account_monitor.sql
 supabase/migrations/048_ad_platform_multi_portfolio.sql
 supabase/migrations/049_ad_account_funding_display.sql
+supabase/migrations/050_ad_monitor_scheduler.sql
 
 src/lib/ads/
   meta-ads-errors.ts        erros tipados, classificação, redação do corpo
@@ -230,6 +267,9 @@ src/lib/ads/
   credentials.ts            portfólios e tokens cifrados
   internal-phone.ts         validação do número da cópia interna
   monitor-runner.ts         o ciclo: ler, decidir, enviar, gravar
+  scheduler.ts              o laço de hora em hora e a trava do banco
+
+src/instrumentation.ts      liga o agendador quando o servidor sobe
 
 src/app/api/ads/
   credentials/route.ts                    GET listar · POST conectar
@@ -247,7 +287,7 @@ src/app/(dashboard)/ads-monitor/
 
 Testes: `account-health.test.ts`, `meta-ads-client.test.ts`,
 `alert-message.test.ts`, `monitor-runner.test.ts` e
-`api/ads/monitor/cron/route.test.ts` — 107 casos no total.
+`api/ads/monitor/cron/route.test.ts` — 113 casos no total.
 
 ## 4.1 O que o cliente recebe
 
@@ -320,18 +360,14 @@ limit 50;
 
 ## 7. O que ficou de fora
 
-1. **Link no menu lateral.** A página existe em `/ads-monitor` mas não
-   está registrada em `src/app/(dashboard)/dashboard-shell.tsx`, porque
-   o menu tem rótulos traduzidos nos quatro catálogos de `messages/`.
-   Adicionar o item e as quatro chaves é a última etapa.
-2. **Templates para a API oficial da Meta.** Ver a seção 1. Envolve
+1. **Templates para a API oficial da Meta.** Ver a seção 1. Envolve
    criar dois templates aprovados e trocar, em `monitor-runner.ts`, a
    função `defaultSendToContact` para usar `engineSendTemplate` quando
    `loadProviderTransport` devolver `provider === 'meta'`.
-3. **Controles do design system.** A tela usa `<select>` e
+2. **Controles do design system.** A tela usa `<select>` e
    `<input type="checkbox">` nativos em vez de `Select` e `Switch`. É
    ajuste visual, não muda comportamento.
-4. **Google Ads e TikTok Ads.** O banco já separa por `platform`, mas
+3. **Google Ads e TikTok Ads.** O banco já separa por `platform`, mas
    só `'meta'` é aceito pelo CHECK. Um segundo conector entra criando
    `src/lib/ads/<plataforma>-client.ts` com a mesma forma de
    `MetaAdAccountSnapshot` e ampliando o CHECK.

@@ -177,8 +177,15 @@ function parseThreshold(value: unknown): number | null {
   return Math.trunc(parsed)
 }
 
+/**
+ * Zero é o padrão: o aviso sai quando o saldo cruza para baixo do
+ * limite e não se repete enquanto continuar lá. Com a verificação
+ * automática de hora em hora, qualquer outro valor transformaria um
+ * problema que dura o dia inteiro numa fila de mensagens no WhatsApp
+ * do cliente.
+ */
 function parseCooldown(value: unknown): number {
   const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return 24
+  if (!Number.isFinite(parsed)) return 0
   return Math.min(Math.max(Math.trunc(parsed), 0), 720)
 }

@@ -320,3 +320,77 @@ resposta real da Casa Uniart como fixture.
 O saldo lido (R$ 278,60) bate com o `display_string` da Meta. Falta
 confirmar com o usuário que esse é o mesmo número que o Gerenciador de
 Anúncios mostra na tela — é a última etapa da Tarefa B.
+
+---
+
+# Atualização 3 — 2026-09-22, noite
+
+Saldo confirmado ao vivo: as quatro contas do primeiro portfólio leem
+valores que batem com o Gerenciador. A Tarefa B está fechada.
+
+Três pedidos desta rodada, todos implementados.
+
+## 1. Item no menu lateral (Tarefa A, concluída)
+
+`src/components/layout/sidebar.tsx` ganhou a entrada `/ads-monitor` com
+o ícone `Wallet`, e `NavItem` ganhou um campo `minRole`. A linha só
+aparece para proprietário e administrador: a página já redirigia quem
+não podia entrar, e um link que devolve a pessoa ao painel parece
+defeito.
+
+Chave `Sidebar.adsMonitor` adicionada aos quatro catálogos:
+
+- pt: "Contas de anúncio"
+- en: "Ad accounts"
+- es: "Cuentas de anuncios"
+- ko: "광고 계정"
+
+Os arquivos de `messages/` foram alterados por inserção de linha, não
+por reserialização do JSON, para não bagunçar o diff dos outros ~3.000
+textos.
+
+## 2. Verificação automática de hora em hora
+
+`src/instrumentation.ts` chama `startAdMonitorScheduler()` no
+`register()` do Next — confirmado contra a documentação da versão
+16.3.5 instalada: `register` roda uma vez por inicialização do
+servidor, e `NEXT_RUNTIME` distingue Node de Edge.
+
+`src/lib/ads/scheduler.ts` tem o laço. Duas proteções contra mensagem
+duplicada quando houver mais de uma instância:
+
+1. **Trava no banco** (`ad_monitor_scheduler_lease`, migração 050). O
+   filtro `locked_until < agora` viaja dentro do próprio UPDATE, então
+   quem perde a disputa não recebe linha de volta. Ler antes e escrever
+   depois abriria a janela para as duas acharem que ganharam — tem
+   teste afirmando que o filtro está no UPDATE.
+2. **Intervalo mínimo por conta**: 55 minutos, aplicado pelo runner.
+
+A trava é concessão com prazo (20 min), não "liberar no fim": instância
+morta no meio do ciclo não trava o monitor até o próximo deploy.
+
+Desligável com `ADS_MONITOR_AUTORUN=false`. A rota
+`/api/ads/monitor/cron` continua válida para quem preferir agendador
+externo.
+
+## 3. Uma mensagem por evento
+
+`cooldown_hours` passou a ter padrão zero, e a 050 zera as linhas
+existentes. Zero significa "avise na transição e pare": um saldo que
+fique baixo a semana inteira gera uma mensagem, não uma por hora de
+verificação. Novo aviso só depois de o saldo se recuperar acima de 120%
+do limite e cair de novo.
+
+O padrão da rota `POST /api/ads/accounts` também mudou de 24 para 0.
+
+## Verificação
+
+113 testes passando e `tsc --noEmit` limpo. A sintaxe do `sidebar.tsx`
+foi conferida à parte com o compilador; o typecheck completo dele
+depende do repositório inteiro e roda no `npm run typecheck`.
+
+## Atenção ao aplicar
+
+Rode a 050 **depois** do deploy, não antes. Ela zera `cooldown_hours`;
+a versão antiga em produção continuaria funcionando com isso, mas o
+agendador só existe no código novo.
