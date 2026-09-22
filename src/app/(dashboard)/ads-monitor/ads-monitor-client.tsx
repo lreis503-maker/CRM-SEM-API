@@ -64,12 +64,6 @@ export interface CredentialView {
   lastVerifyError: string | null
 }
 
-interface MetaAdAccountOption {
-  externalAccountId: string
-  name: string | null
-  currency: string | null
-}
-
 interface Props {
   monitors: MonitorView[]
   contacts: ContactOption[]
@@ -411,32 +405,8 @@ function NewMonitorCard({
   const [adAccountId, setAdAccountId] = useState('')
   const [contactId, setContactId] = useState('')
   const [threshold, setThreshold] = useState('100')
-  const [options, setOptions] = useState<MetaAdAccountOption[] | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [listError, setListError] = useState<string | null>(null)
 
   const disabled = credentials.length === 0
-
-  async function loadAccounts(id: string) {
-    setLoading(true)
-    setListError(null)
-    setOptions(null)
-    try {
-      const response = await fetch(`/api/ads/credentials/${id}/ad-accounts`)
-      const body = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        setListError(
-          typeof body.error === 'string'
-            ? body.error
-            : 'Não foi possível listar as contas.',
-        )
-        return
-      }
-      setOptions(body.ad_accounts ?? [])
-    } finally {
-      setLoading(false)
-    }
-  }
 
   return (
     <Card>
@@ -445,7 +415,7 @@ function NewMonitorCard({
         <CardDescription>
           {disabled
             ? 'Conecte um portfólio antes de cadastrar contas.'
-            : 'Escolha o portfólio, a conta e o cliente que recebe o aviso.'}
+            : 'Escolha o portfólio, informe o identificador da conta de anúncio e o cliente que recebe o aviso.'}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -455,12 +425,7 @@ function NewMonitorCard({
             id="ads-credential"
             className={SELECT_CLASS}
             value={credentialId}
-            onChange={(event) => {
-              setCredentialId(event.target.value)
-              setOptions(null)
-              setAdAccountId('')
-              if (event.target.value) void loadAccounts(event.target.value)
-            }}
+            onChange={(event) => setCredentialId(event.target.value)}
           >
             <option value="">Selecione…</option>
             {credentials.map((credential) => (
@@ -473,40 +438,16 @@ function NewMonitorCard({
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="ads-account-id">Conta de anúncio</Label>
-          {loading ? (
-            <p className="text-muted-foreground text-sm">Buscando contas…</p>
-          ) : null}
-          {options && options.length > 0 ? (
-            <select
-              id="ads-account-id"
-              className={SELECT_CLASS}
-              value={adAccountId}
-              onChange={(event) => setAdAccountId(event.target.value)}
-            >
-              <option value="">Selecione…</option>
-              {options.map((option) => (
-                <option
-                  key={option.externalAccountId}
-                  value={option.externalAccountId}
-                >
-                  {option.name ?? `act_${option.externalAccountId}`} ·{' '}
-                  {option.externalAccountId}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <Input
-              id="ads-account-id"
-              value={adAccountId}
-              onChange={(event) => setAdAccountId(event.target.value)}
-              placeholder="act_1234567890"
-            />
-          )}
-          {listError ? (
-            <p className="text-muted-foreground text-xs">
-              {listError} Você ainda pode informar o identificador na mão.
-            </p>
-          ) : null}
+          <Input
+            id="ads-account-id"
+            value={adAccountId}
+            onChange={(event) => setAdAccountId(event.target.value)}
+            placeholder="act_1234567890"
+          />
+          <p className="text-muted-foreground text-xs">
+            Copie do Gerenciador de Anúncios. Com ou sem o prefixo{' '}
+            <code>act_</code>.
+          </p>
         </div>
 
         <div className="flex flex-col gap-1.5">
