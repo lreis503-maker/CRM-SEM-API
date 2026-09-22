@@ -4,6 +4,7 @@ import {
   createMetaAdsClient,
   normalizeAdAccountId,
   parseAdAccountSnapshot,
+  parseDisplayAmountCents,
   parseMinorUnits,
 } from './meta-ads-client';
 import { MetaAdsClientError } from './meta-ads-errors';
@@ -51,7 +52,72 @@ describe('parseMinorUnits', () => {
   });
 });
 
+describe('parseDisplayAmountCents', () => {
+  it('lê o texto que a Meta devolve numa conta pré-paga brasileira', () => {
+    expect(
+      parseDisplayAmountCents('Saldo disponível (R$278,60 BRL)', 'BRL')
+    ).toBe(27860);
+  });
+
+  it.each([
+    ['R$1.278,60', 'BRL', 127860],
+    ['$1,278.60', 'USD', 127860],
+    ['R$ 1.278', 'BRL', 127800],
+    ['R$0,00', 'BRL', 0],
+    ['Available funds (278.60 USD)', 'USD', 27860],
+  ])('lê %s', (display, currency, expected) => {
+    expect(parseDisplayAmountCents(display, currency)).toBe(expected);
+  });
+
+  it('não lê número de cartão como se fosse saldo', () => {
+    // Sem esta guarda, o alerta sairia dizendo que o cliente tem
+    // R$ 1.234 de saldo porque o cartão termina em 1234.
+    expect(parseDisplayAmountCents('Visa ···· 1234', 'BRL')).toBeNull();
+    expect(parseDisplayAmountCents('Mastercard **** 4321', 'BRL')).toBeNull();
+    expect(parseDisplayAmountCents('Boleto bancário', 'BRL')).toBeNull();
+  });
+
+  it('devolve null para texto vazio ou ausente', () => {
+    expect(parseDisplayAmountCents(null, 'BRL')).toBeNull();
+    expect(parseDisplayAmountCents('   ', 'BRL')).toBeNull();
+  });
+});
+
 describe('parseAdAccountSnapshot', () => {
+  // Resposta real da conta Casa Uniart, capturada no Explorador da API.
+  const CASA_UNIART = {
+    name: 'Casa Uniart',
+    currency: 'BRL',
+    account_status: 1,
+    balance: '9555',
+    amount_spent: '699606',
+    spend_cap: '724081',
+    is_prepay_account: true,
+    funding_source: '8658821880896410',
+    funding_source_details: {
+      id: '8658821880896410',
+      display_string: 'Saldo disponível (R$278,60 BRL)',
+      type: 20,
+    },
+    id: 'act_1667636610825801',
+  };
+
+  it('lê o saldo real de uma conta pré-paga', () => {
+    const parsed = parseAdAccountSnapshot(CASA_UNIART, '1667636610825801');
+
+    expect(parsed.availableFundsCents).toBe(27860);
+    expect(parsed.fundingSourceType).toBe(20);
+    expect(parsed.externalAccountId).toBe('1667636610825801');
+  });
+
+  it('não confunde a fatura em aberto com o saldo', () => {
+    const parsed = parseAdAccountSnapshot(CASA_UNIART, '1');
+
+    // `balance` é o quanto a conta deve, e sobe conforme ela gasta.
+    expect(parsed.amountDueCents).toBe(9555);
+    expect(parsed.amountDueCents).not.toBe(parsed.availableFundsCents);
+  });
+
   it('lê o corpo completo', () => {
     const parsed = parseAdAccountSnapshot(
       {
@@ -66,6 +132,10 @@ describe('parseAdAccountSnapshot', () => {
         spend_cap: '500000',
         is_prepay_account: true,
         funding_source: '99887766',
+        funding_source_details: {
+          display_string: 'Saldo disponível (R$120,00 BRL)',
+          type: 20,
+        },
       },
       '123'
     );
@@ -74,14 +144,33 @@ describe('parseAdAccountSnapshot', () => {
       externalAccountId: '123',
       name: 'Cliente A',
       currency: 'BRL',
-      balanceCents: 8750,
+      amountDueCents: 8750,
       amountSpentCents: 430000,
       spendCapCents: 500000,
       isPrepayAccount: true,
       accountStatus: 1,
       disableReason: 0,
       hasFundingSource: true,
+      availableFundsCents: 12000,
+      fundingSourceDisplay: 'Saldo disponível (R$120,00 BRL)',
+      fundingSourceType: 20,
     });
+  });
+
+  it('não extrai saldo de conta que não é pré-paga', () => {
+    // Em conta no cartão o texto descreve o cartão, não um saldo.
+    const parsed = parseAdAccountSnapshot(
+      {
+        account_id: '123',
+        currency: 'BRL',
+        is_prepay_account: false,
+        funding_source_details: { display_string: 'Visa ···· 4321', type: 1 },
+      },
+      '123'
+    );
+
+    expect(parsed.availableFundsCents).toBeNull();
+    expect(parsed.fundingSourceDisplay).toBe('Visa ···· 4321');
   });
 
   it('trata spend_cap zero como "sem limite", não como teto de zero', () => {

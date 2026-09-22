@@ -16,13 +16,16 @@ function snapshot(
     externalAccountId: '1234567890',
     name: 'Cliente A',
     currency: 'BRL',
-    balanceCents: 50000,
+    amountDueCents: 5000,
     amountSpentCents: 0,
     spendCapCents: null,
     isPrepayAccount: true,
     accountStatus: AD_ACCOUNT_STATUS.ACTIVE,
     disableReason: 0,
     hasFundingSource: true,
+    availableFundsCents: 50000,
+    fundingSourceDisplay: 'Saldo disponível (R$500,00 BRL)',
+    fundingSourceType: 20,
     ...overrides,
   };
 }
@@ -38,19 +41,27 @@ const QUIET: MonitorAlertState = {
 const NOW = new Date('2026-09-22T12:00:00.000Z');
 
 describe('evaluateAdAccountHealth — saldo', () => {
-  it('usa o saldo da conta pré-paga', () => {
+  it('usa o saldo informado pela Meta quando existe', () => {
     const health = evaluateAdAccountHealth(
-      snapshot({ isPrepayAccount: true, balanceCents: 8000 })
+      snapshot({ availableFundsCents: 8000 })
     );
-    expect(health.balanceBasis).toBe('prepaid');
+    expect(health.balanceBasis).toBe('available_funds');
     expect(health.availableCents).toBe(8000);
   });
 
-  it('usa o que sobra do limite de gastos numa conta pós-paga', () => {
+  it('nunca confunde a fatura em aberto com o saldo', () => {
+    // Esta é a regressão que importa: `balance` sobe conforme a conta
+    // gasta. Tratá-lo como saldo invertia o alerta inteiro.
+    const health = evaluateAdAccountHealth(
+      snapshot({ amountDueCents: 9555, availableFundsCents: 27860 })
+    );
+    expect(health.availableCents).toBe(27860);
+  });
+
+  it('cai para o limite de gastos quando o saldo não pôde ser lido', () => {
     const health = evaluateAdAccountHealth(
       snapshot({
-        isPrepayAccount: false,
-        balanceCents: 12000,
+        availableFundsCents: null,
         spendCapCents: 100000,
         amountSpentCents: 93000,
       })
@@ -59,10 +70,22 @@ describe('evaluateAdAccountHealth — saldo', () => {
     expect(health.availableCents).toBe(7000);
   });
 
+  it('prefere o saldo informado ao limite de gastos', () => {
+    const health = evaluateAdAccountHealth(
+      snapshot({
+        availableFundsCents: 27860,
+        spendCapCents: 724081,
+        amountSpentCents: 699606,
+      })
+    );
+    // O limite daria R$ 244,75; a Meta informa R$ 278,60.
+    expect(health.availableCents).toBe(27860);
+  });
+
   it('nunca devolve saldo negativo quando o gasto passou do limite', () => {
     const health = evaluateAdAccountHealth(
       snapshot({
-        isPrepayAccount: false,
+        availableFundsCents: null,
         spendCapCents: 100000,
         amountSpentCents: 150000,
       })
@@ -70,12 +93,12 @@ describe('evaluateAdAccountHealth — saldo', () => {
     expect(health.availableCents).toBe(0);
   });
 
-  it('não inventa saldo numa conta pós-paga sem limite de gastos', () => {
+  it('não inventa saldo quando não há nem texto nem limite', () => {
     const health = evaluateAdAccountHealth(
       snapshot({
-        isPrepayAccount: false,
+        availableFundsCents: null,
         spendCapCents: null,
-        balanceCents: 4500,
+        amountDueCents: 4500,
       })
     );
     expect(health.balanceBasis).toBe('none');
@@ -136,7 +159,11 @@ describe('decideAlerts — saldo baixo', () => {
   it('avisa na primeira vez que o saldo cai abaixo do limite', () => {
     const result = decideAlerts({
       ...base,
-      health: { balanceBasis: 'prepaid', availableCents: 9000, paymentIssue: null },
+      health: {
+        balanceBasis: 'available_funds',
+        availableCents: 9000,
+        paymentIssue: null,
+      },
       previous: QUIET,
     });
 
@@ -150,7 +177,7 @@ describe('decideAlerts — saldo baixo', () => {
   it('não repete o aviso dentro do intervalo de espera', () => {
     const result = decideAlerts({
       ...base,
-      health: { balanceBasis: 'prepaid', availableCents: 9000, paymentIssue: null },
+      health: { balanceBasis: 'available_funds', availableCents: 9000, paymentIssue: null },
       previous: {
         ...QUIET,
         lowBalanceActive: true,
@@ -164,7 +191,7 @@ describe('decideAlerts — saldo baixo', () => {
   it('repete o aviso quando o intervalo vence', () => {
     const result = decideAlerts({
       ...base,
-      health: { balanceBasis: 'prepaid', availableCents: 9000, paymentIssue: null },
+      health: { balanceBasis: 'available_funds', availableCents: 9000, paymentIssue: null },
       previous: {
         ...QUIET,
         lowBalanceActive: true,
@@ -181,7 +208,7 @@ describe('decideAlerts — saldo baixo', () => {
     const result = decideAlerts({
       ...base,
       cooldownHours: 0,
-      health: { balanceBasis: 'prepaid', availableCents: 9000, paymentIssue: null },
+      health: { balanceBasis: 'available_funds', availableCents: 9000, paymentIssue: null },
       previous: {
         ...QUIET,
         lowBalanceActive: true,
@@ -197,7 +224,7 @@ describe('decideAlerts — saldo baixo', () => {
     const result = decideAlerts({
       ...base,
       health: {
-        balanceBasis: 'prepaid',
+        balanceBasis: 'available_funds',
         availableCents: justAbove,
         paymentIssue: null,
       },
@@ -211,7 +238,7 @@ describe('decideAlerts — saldo baixo', () => {
   it('avisa a normalização quando o saldo passa da margem', () => {
     const result = decideAlerts({
       ...base,
-      health: { balanceBasis: 'prepaid', availableCents: 12000, paymentIssue: null },
+      health: { balanceBasis: 'available_funds', availableCents: 12000, paymentIssue: null },
       previous: { ...QUIET, lowBalanceActive: true, lowBalanceAlertAt: NOW },
     });
 
@@ -224,7 +251,7 @@ describe('decideAlerts — saldo baixo', () => {
   it('não manda normalização para quem nunca recebeu o alerta', () => {
     const result = decideAlerts({
       ...base,
-      health: { balanceBasis: 'prepaid', availableCents: 90000, paymentIssue: null },
+      health: { balanceBasis: 'available_funds', availableCents: 90000, paymentIssue: null },
       previous: QUIET,
     });
 
@@ -255,7 +282,7 @@ describe('decideAlerts — cobrança', () => {
     const result = decideAlerts({
       ...base,
       health: {
-        balanceBasis: 'prepaid',
+        balanceBasis: 'available_funds',
         availableCents: 50000,
         paymentIssue: 'unsettled',
       },
@@ -272,7 +299,7 @@ describe('decideAlerts — cobrança', () => {
     const result = decideAlerts({
       ...base,
       health: {
-        balanceBasis: 'prepaid',
+        balanceBasis: 'available_funds',
         availableCents: 50000,
         paymentIssue: 'disabled',
       },
@@ -293,7 +320,7 @@ describe('decideAlerts — cobrança', () => {
     const result = decideAlerts({
       ...base,
       health: {
-        balanceBasis: 'prepaid',
+        balanceBasis: 'available_funds',
         availableCents: 50000,
         paymentIssue: 'unsettled',
       },
@@ -312,7 +339,7 @@ describe('decideAlerts — cobrança', () => {
     const result = decideAlerts({
       ...base,
       health: {
-        balanceBasis: 'prepaid',
+        balanceBasis: 'available_funds',
         availableCents: 50000,
         paymentIssue: null,
       },
@@ -334,7 +361,7 @@ describe('decideAlerts — cobrança', () => {
     const result = decideAlerts({
       ...base,
       health: {
-        balanceBasis: 'prepaid',
+        balanceBasis: 'available_funds',
         availableCents: 100,
         paymentIssue: 'no_funding_source',
       },

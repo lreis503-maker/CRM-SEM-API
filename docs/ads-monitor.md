@@ -58,6 +58,7 @@ se você usa a CLI):
 
 1. `supabase/migrations/047_ad_account_monitor.sql`
 2. `supabase/migrations/048_ad_platform_multi_portfolio.sql`
+3. `supabase/migrations/049_ad_account_funding_display.sql`
 
 A 047 cria:
 
@@ -74,7 +75,11 @@ rótulo obrigatório, remove a unicidade que limitava a um portfólio e
 adiciona `ad_account_monitors.credential_id`, ligando cada conta de
 anúncio ao portfólio cujo token a lê.
 
-Ambas são seguras de rodar mais de uma vez.
+A 049 corrige a leitura de saldo: guarda o texto da forma de pagamento
+para diagnóstico e zera o estado dos alertas, porque as leituras
+anteriores foram feitas com a regra invertida (veja a seção 3).
+
+As três são seguras de rodar mais de uma vez.
 
 ### 2.3 Na tela
 
@@ -91,10 +96,14 @@ O token é validado contra a Meta **antes** de ser gravado. Um token que
 não funciona é recusado na hora, em vez de virar erro silencioso em todo
 ciclo de verificação.
 
-Depois, em "Adicionar conta de anúncio", escolha o portfólio. A tela
-busca as contas que aquele token enxerga e oferece a lista — você não
-precisa copiar identificador na mão. Se a busca falhar, o campo aceita
-o identificador digitado.
+Depois, em "Adicionar conta de anúncio", escolha o portfólio e informe
+o identificador da conta, copiado do Gerenciador de Anúncios. Aceita
+com ou sem o prefixo `act_`.
+
+Digitar o identificador contorna a listagem, mas **não** contorna a
+permissão: a conta precisa estar nos ativos daquele usuário de sistema,
+com "Gerenciar conta de anúncios". Sem isso a leitura falha com erro de
+acesso na primeira verificação.
 
 Para desconectar um portfólio, remova antes as contas ligadas a ele. A
 remoção é recusada enquanto houver alguma, para uma desconexão não
@@ -124,24 +133,46 @@ A resposta é `{ checked, skipped, alerts, failures }`.
 
 ### Saldo
 
-A Meta não expõe um campo único chamado "saldo restante", e o cálculo
-muda conforme o tipo de conta. O código trata os três casos
-explicitamente, em `src/lib/ads/account-health.ts`:
+**O campo `balance` da Meta não é o saldo.** Ele é a fatura em aberto —
+quanto a conta deve — e **cresce** conforme os anúncios gastam. Usá-lo
+como saldo inverte o alerta: ele dispararia com o cliente tendo gasto
+pouco e silenciaria conforme ele gasta. Foi o bug da primeira versão,
+corrigido na 049.
 
-| Tipo de conta | Saldo comparado | Campo |
+O saldo de verdade vem de `funding_source_details.display_string`, que
+carrega o mesmo texto do Gerenciador de Anúncios:
+
+```json
+"funding_source_details": {
+  "display_string": "Saldo disponível (R$278,60 BRL)",
+  "type": 20
+}
+```
+
+Não existe campo numérico equivalente no nó da conta, então o número é
+extraído desse texto. A ordem de preferência, em
+`src/lib/ads/account-health.ts`:
+
+| Origem | Quando | Confiabilidade |
 | --- | --- | --- |
-| Pré-paga | crédito que sobrou | `balance` |
-| Pós-paga com limite de gastos | quanto ainda cabe antes de a Meta pausar | `spend_cap − amount_spent` |
-| Pós-paga sem limite | **não existe saldo a comparar** | — |
+| `funding_source_details.display_string` | conta pré-paga com texto legível | exata — é o número do Gerenciador |
+| `spend_cap − amount_spent` | o texto não pôde ser lido | aproximada, erra para baixo |
+| nenhuma | nem texto nem limite de gastos | a regra de saldo não roda |
 
-No terceiro caso a regra de saldo simplesmente não roda; só a de
-cobrança. Inventar um número ali geraria alerta em toda leitura.
+A leitura do texto só acontece quando `is_prepay_account` é `true`, e
+exige um símbolo de moeda colado ao número. Sem essa guarda, o
+`display_string` de um cartão ("Visa ···· 1234") viraria um saldo de
+R$ 1.234 e mandaria alerta errado para o cliente.
+
+A rede do `spend_cap` costuma ficar abaixo do saldo real — na conta que
+serviu de referência, R$ 244,75 contra R$ 278,60 — então ela avisa cedo
+demais em vez de tarde demais, que é o erro certo a cometer.
 
 > **Confira a primeira leitura.** Depois de cadastrar uma conta, clique
-> em "Verificar agora" e compare o saldo mostrado com o que aparece no
-> Gerenciador de Anúncios. Os valores crus (`balance_cents`,
-> `amount_spent_cents`, `spend_cap_cents`, `is_prepay_account`) ficam
-> gravados em `ad_account_monitor_state` justamente para essa conferência.
+> em "Verificar agora" e compare o saldo com o do Gerenciador de
+> Anúncios. Os valores crus ficam em `ad_account_monitor_state`
+> (`balance_cents` é a fatura, `available_cents` é o saldo comparado, e
+> `funding_source_display` é o texto de onde ele saiu).
 
 ### Cobrança
 
@@ -189,6 +220,7 @@ O cliente **nunca** é avisado de falha de leitura: não é problema dele.
 ```
 supabase/migrations/047_ad_account_monitor.sql
 supabase/migrations/048_ad_platform_multi_portfolio.sql
+supabase/migrations/049_ad_account_funding_display.sql
 
 src/lib/ads/
   meta-ads-errors.ts        erros tipados, classificação, redação do corpo
@@ -215,7 +247,7 @@ src/app/(dashboard)/ads-monitor/
 
 Testes: `account-health.test.ts`, `meta-ads-client.test.ts`,
 `alert-message.test.ts`, `monitor-runner.test.ts` e
-`api/ads/monitor/cron/route.test.ts` — 94 casos no total.
+`api/ads/monitor/cron/route.test.ts` — 107 casos no total.
 
 ## 4.1 O que o cliente recebe
 
@@ -280,7 +312,8 @@ limit 50;
 | `last_error` sobre token | Token daquele portfólio expirou ou perdeu `ads_read` |
 | `last_error` falando de portfólio | Conta sem portfólio escolhido — abra a tela e selecione |
 | Uma conta some da lista de "Buscar contas" | O usuário de sistema daquele portfólio não tem acesso a ela |
-| `available_cents` nulo sempre | Conta pós-paga sem limite de gastos: só a regra de cobrança se aplica |
+| `available_cents` nulo sempre | Nem texto de saldo nem limite de gastos: só a regra de cobrança se aplica |
+| Saldo diferente do Gerenciador | Veja `funding_source_display`: se estiver vazio, o saldo veio do limite de gastos e é aproximado |
 | Nenhum alerta e `checked_at` antigo | O agendador não está chamando a rota |
 
 ---

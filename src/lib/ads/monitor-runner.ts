@@ -460,7 +460,9 @@ async function writeState(
 
   if (reading !== null) {
     patch.checked_at = now.toISOString();
-    patch.balance_cents = reading.snapshot.balanceCents;
+    // `balance_cents` guarda a fatura em aberto da Meta, não o saldo.
+    // O saldo comparado com o limite é `available_cents`.
+    patch.balance_cents = reading.snapshot.amountDueCents;
     patch.amount_spent_cents = reading.snapshot.amountSpentCents;
     patch.spend_cap_cents = reading.snapshot.spendCapCents;
     patch.available_cents = reading.availableCents;
@@ -469,6 +471,7 @@ async function writeState(
     patch.account_status = reading.snapshot.accountStatus;
     patch.disable_reason = reading.snapshot.disableReason;
     patch.has_funding_source = reading.snapshot.hasFundingSource;
+    patch.funding_source_display = reading.snapshot.fundingSourceDisplay;
   }
 
   await db
@@ -528,10 +531,13 @@ async function deliverAlert(input: {
       contact_id: monitor.contact_id,
       delivery_status: 'skipped',
       snapshot: {
-        balance_cents: input.snapshot.balanceCents,
+        amount_due_cents: input.snapshot.amountDueCents,
         amount_spent_cents: input.snapshot.amountSpentCents,
         spend_cap_cents: input.snapshot.spendCapCents,
         available_cents: input.availableCents,
+        available_funds_cents: input.snapshot.availableFundsCents,
+        funding_source_display: input.snapshot.fundingSourceDisplay,
+        funding_source_type: input.snapshot.fundingSourceType,
         currency: input.currency,
         account_status: input.snapshot.accountStatus,
         disable_reason: input.snapshot.disableReason,

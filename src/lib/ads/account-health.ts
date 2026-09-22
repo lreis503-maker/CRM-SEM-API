@@ -50,14 +50,23 @@ export type PaymentIssueCode =
 /**
  * De onde saiu o saldo comparado com o limite.
  *
- * - `prepaid`: conta pré-paga; o saldo é o crédito que sobrou.
- * - `spend_cap`: conta pós-paga com limite de gastos; o "saldo" é o
- *   quanto ainda cabe antes de a Meta pausar as campanhas.
- * - `none`: conta pós-paga sem limite de gastos. Não existe saldo a
- *   comparar, então a regra de saldo baixo não roda — só a de
- *   cobrança. Fingir um número aqui geraria alerta em toda leitura.
+ * - `available_funds`: o saldo que a Meta informa no texto da forma de
+ *   pagamento, idêntico ao que o Gerenciador de Anúncios mostra. É o
+ *   melhor número disponível e tem prioridade sobre os outros.
+ * - `spend_cap`: quanto ainda cabe antes de a Meta pausar as campanhas
+ *   por limite de gastos. Serve de rede quando o texto não pôde ser
+ *   lido, e erra para o lado seguro: costuma ficar abaixo do saldo
+ *   real, então avisa cedo demais em vez de tarde demais.
+ * - `none`: não há saldo a comparar. A regra de saldo baixo não roda —
+ *   só a de cobrança. Fingir um número aqui geraria alerta em toda
+ *   leitura.
+ *
+ * O campo `balance` da Meta não aparece em lugar nenhum desta lista, e
+ * é de propósito: ele é a fatura em aberto e **cresce** conforme a
+ * conta gasta. Usá-lo como saldo inverte a regra — foi o bug que esta
+ * versão corrige.
  */
-export type BalanceBasis = 'prepaid' | 'spend_cap' | 'none';
+export type BalanceBasis = 'available_funds' | 'spend_cap' | 'none';
 
 export interface AdAccountHealth {
   balanceBasis: BalanceBasis;
@@ -95,8 +104,11 @@ export function evaluateAdAccountHealth(
 function resolveAvailableBalance(
   snapshot: MetaAdAccountSnapshot
 ): { balanceBasis: BalanceBasis; availableCents: number | null } {
-  if (snapshot.isPrepayAccount === true && snapshot.balanceCents !== null) {
-    return { balanceBasis: 'prepaid', availableCents: snapshot.balanceCents };
+  if (snapshot.availableFundsCents !== null) {
+    return {
+      balanceBasis: 'available_funds',
+      availableCents: snapshot.availableFundsCents,
+    };
   }
 
   if (snapshot.spendCapCents !== null && snapshot.amountSpentCents !== null) {

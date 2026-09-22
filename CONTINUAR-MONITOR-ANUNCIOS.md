@@ -233,3 +233,90 @@ O passo 3 importa: as contas que já existiam foram atribuídas ao
 portfólio antigo pelo backfill. As do segundo portfólio precisam ser
 cadastradas, e qualquer conta que tenha ficado no portfólio errado
 falha na leitura com erro de permissão até ser corrigida na tela.
+
+---
+
+# Atualização 2 — 2026-09-22, fim da tarde
+
+Correção de um bug real encontrado em produção.
+
+## O bug: o saldo estava invertido
+
+A 047 tratava o campo `balance` da Meta como saldo restante. Ele é a
+**fatura em aberto** e **cresce** conforme a conta gasta. Dados reais
+da mesma conta ao longo de um dia:
+
+| Hora | `balance_cents` |
+| --- | --- |
+| 12:47 | 6.932 |
+| 12:57 | 7.026 |
+| 15:43 | 8.853 |
+
+Subindo. Saldo restante desce. Na prática o alerta disparava quando o
+cliente tinha gasto pouco e silenciava conforme ele gastava.
+
+## A correção
+
+O saldo real vem de `funding_source_details.display_string`, que traz o
+mesmo texto do Gerenciador de Anúncios. Resposta real da conta usada
+como referência:
+
+```json
+{
+  "name": "Casa Uniart",
+  "currency": "BRL",
+  "balance": "9555",
+  "amount_spent": "699606",
+  "spend_cap": "724081",
+  "is_prepay_account": true,
+  "funding_source_details": {
+    "display_string": "Saldo disponível (R$278,60 BRL)",
+    "type": 20
+  }
+}
+```
+
+Nenhum campo numérico do nó da conta chega em R$ 278,60:
+`spend_cap − amount_spent` dá R$ 244,75 e `balance` dá R$ 95,55. O
+número só existe naquele texto, então ele é extraído de lá.
+
+Ordem de preferência, em `resolveAvailableBalance`:
+
+1. `funding_source_details.display_string`, quando `is_prepay_account`;
+2. `spend_cap − amount_spent`, como rede (erra para baixo);
+3. nenhuma — a regra de saldo não roda.
+
+`parseDisplayAmountCents` exige símbolo de moeda colado ao número. Sem
+isso, o `display_string` de um cartão ("Visa ···· 1234") viraria saldo
+de R$ 1.234. Há teste cobrindo exatamente esse caso.
+
+`balanceCents` virou `amountDueCents` no código, para o nome não
+convidar ao mesmo erro de novo. A coluna do banco continua
+`balance_cents`, agora com comentário dizendo o que ela é.
+
+## Migração
+
+`supabase/migrations/049_ad_account_funding_display.sql`
+
+- adiciona `ad_account_monitor_state.funding_source_display`;
+- corrige os comentários de `balance_cents` e `available_cents`;
+- **zera o estado dos alertas de saldo**, porque as leituras antigas
+  descrevem a fatura. Sem isso, uma conta marcada como "em alerta" pela
+  regra velha mandaria um "saldo normalizado" que nunca foi verdade.
+
+## Outras mudanças desta rodada
+
+- O campo de conta de anúncio na tela virou digitação direta, a pedido
+  do usuário. A rota `credentials/[id]/ad-accounts` ficou sem uso pela
+  tela; segue válida como diagnóstico e pode ser removida.
+
+## Verificação
+
+107 testes passando e `tsc --noEmit` limpo. Os testes novos usam a
+resposta real da Casa Uniart como fixture.
+
+## O que ainda não foi conferido
+
+O saldo lido (R$ 278,60) bate com o `display_string` da Meta. Falta
+confirmar com o usuário que esse é o mesmo número que o Gerenciador de
+Anúncios mostra na tela — é a última etapa da Tarefa B.

@@ -51,6 +51,11 @@ const AD_ACCOUNT_FIELDS = [
   'spend_cap',
   'is_prepay_account',
   'funding_source',
+  // É aqui que mora o saldo de verdade. Numa conta pré-paga, a Meta
+  // devolve `display_string` com o mesmo texto que o Gerenciador de
+  // Anúncios mostra — "Saldo disponível (R$278,60 BRL)" — e não há
+  // campo numérico equivalente em lugar nenhum do nó da conta.
+  'funding_source_details',
 ].join(',');
 
 /**
@@ -67,8 +72,12 @@ export interface MetaAdAccountSnapshot {
   name: string | null;
   /** ISO 4217, ex.: 'BRL'. */
   currency: string | null;
-  /** Ver o cabeçalho: menor unidade da moeda. */
-  balanceCents: number | null;
+  /**
+   * O campo `balance` da Meta, que é a **fatura em aberto** — o quanto
+   * a conta deve, não o quanto ela tem. Cresce conforme os anúncios
+   * gastam. Nunca use isto como saldo.
+   */
+  amountDueCents: number | null;
   amountSpentCents: number | null;
   /** `null` quando não há limite de gastos configurado. */
   spendCapCents: number | null;
@@ -77,6 +86,16 @@ export interface MetaAdAccountSnapshot {
   disableReason: number | null;
   /** `false` quando a conta está sem forma de pagamento nenhuma. */
   hasFundingSource: boolean | null;
+  /**
+   * O saldo disponível, extraído do texto da forma de pagamento. É o
+   * mesmo número que o Gerenciador de Anúncios mostra. `null` quando a
+   * conta não é pré-paga ou quando o texto não pôde ser lido.
+   */
+  availableFundsCents: number | null;
+  /** O texto cru, guardado para diagnóstico quando a leitura falha. */
+  fundingSourceDisplay: string | null;
+  /** Tipo da forma de pagamento (20 = saldo pré-pago, observado). */
+  fundingSourceType: number | null;
 }
 
 /** Uma conta como ela aparece na listagem, para a tela de cadastro. */
@@ -178,6 +197,74 @@ function parseSpendCap(value: unknown): number | null {
   return parsed;
 }
 
+/**
+ * Converte "278,60", "1.278,60", "1,278.60" ou "1.278" em centavos.
+ *
+ * Os dois formatos convivem porque a Meta escreve o texto no idioma da
+ * conta. A regra que resolve a ambiguidade: o separador mais à direita
+ * seguido de um ou dois dígitos é decimal; seguido de três, é milhar.
+ * "1.278" vira 127800 e não 1278, que é o comportamento certo para uma
+ * moeda de duas casas.
+ */
+function toCents(raw: string): number | null {
+  const cleaned = raw.replace(/[\s ]/g, '');
+  if (!/^[0-9][0-9.,]*$/.test(cleaned)) return null;
+
+  const decimalAt = Math.max(cleaned.lastIndexOf(','), cleaned.lastIndexOf('.'));
+
+  let integerPart = cleaned;
+  let fractionPart = '';
+
+  if (decimalAt !== -1) {
+    const tail = cleaned.slice(decimalAt + 1);
+    if (/^[0-9]{1,2}$/.test(tail)) {
+      integerPart = cleaned.slice(0, decimalAt);
+      fractionPart = tail.padEnd(2, '0');
+    }
+  }
+
+  const digits = integerPart.replace(/[.,]/g, '');
+  if (!/^[0-9]+$/.test(digits)) return null;
+
+  const cents = Number(digits) * 100 + Number(fractionPart || '0');
+  return Number.isSafeInteger(cents) ? cents : null;
+}
+
+const NUMBER_BODY = '[0-9][0-9.,\\u00a0 ]*[0-9]|[0-9]';
+
+/**
+ * Extrai um valor monetário de um texto livre da Meta.
+ *
+ * Exige um símbolo de moeda coladinho ao número, ou o código ISO logo
+ * depois. É o que impede o desastre silencioso: o `display_string` de
+ * um cartão é algo como "Visa ···· 1234", e um parser guloso leria
+ * 1234 como saldo e mandaria alerta errado para o cliente.
+ */
+export function parseDisplayAmountCents(
+  display: string | null,
+  currency: string | null
+): number | null {
+  if (display === null || display.trim().length === 0) return null;
+
+  const patterns: RegExp[] = [
+    new RegExp(`(?:R\\$|US\\$|CA\\$|A\\$|\\$|€|£|¥)\\s*(${NUMBER_BODY})`),
+  ];
+
+  const code = (currency ?? '').trim().toUpperCase();
+  if (/^[A-Z]{3}$/.test(code)) {
+    patterns.push(new RegExp(`(${NUMBER_BODY})\\s*${code}\\b`));
+  }
+
+  for (const pattern of patterns) {
+    const match = pattern.exec(display);
+    if (match === null) continue;
+    const cents = toCents(match[1]);
+    if (cents !== null) return cents;
+  }
+
+  return null;
+}
+
 export function parseAdAccountSnapshot(
   body: unknown,
   fallbackId: string
@@ -196,14 +283,21 @@ export function parseAdAccountSnapshot(
     normalizeAdAccountId(record.id) ??
     fallbackId;
 
+  const currency = asNonEmptyString(record.currency);
+  const details = asRecord(record.funding_source_details);
+  const fundingSourceDisplay = details
+    ? asNonEmptyString(details.display_string)
+    : null;
+  const isPrepayAccount = asBoolean(record.is_prepay_account);
+
   return {
     externalAccountId,
     name: asNonEmptyString(record.name),
-    currency: asNonEmptyString(record.currency),
-    balanceCents: parseMinorUnits(record.balance),
+    currency,
+    amountDueCents: parseMinorUnits(record.balance),
     amountSpentCents: parseMinorUnits(record.amount_spent),
     spendCapCents: parseSpendCap(record.spend_cap),
-    isPrepayAccount: asBoolean(record.is_prepay_account),
+    isPrepayAccount,
     accountStatus: asInteger(record.account_status),
     disableReason: asInteger(record.disable_reason),
     // `funding_source` só vem quando existe uma forma de pagamento
@@ -213,6 +307,15 @@ export function parseAdAccountSnapshot(
       'funding_source' in record
         ? asNonEmptyString(record.funding_source) !== null
         : null,
+    // Só numa conta pré-paga o texto da forma de pagamento carrega um
+    // saldo. Em conta no cartão ele descreve o cartão, e ler um número
+    // dali seria inventar saldo onde não existe.
+    availableFundsCents:
+      isPrepayAccount === true
+        ? parseDisplayAmountCents(fundingSourceDisplay, currency)
+        : null,
+    fundingSourceDisplay,
+    fundingSourceType: details ? asInteger(details.type) : null,
   };
 }
 

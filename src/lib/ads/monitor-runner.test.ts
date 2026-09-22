@@ -139,7 +139,10 @@ function snapshot(
     externalAccountId: '1234567890',
     name: 'Cliente A',
     currency: 'BRL',
-    balanceCents: 50000,
+    amountDueCents: 5000,
+    availableFundsCents: 50000,
+    fundingSourceDisplay: 'Saldo disponível (R$500,00 BRL)',
+    fundingSourceType: 20,
     amountSpentCents: 0,
     spendCapCents: null,
     isPrepayAccount: true,
@@ -202,7 +205,7 @@ describe('runAdAccountMonitors', () => {
       {},
       {
         now: NOW,
-        createClient: clientReturning(snapshot({ balanceCents: 8750 })),
+        createClient: clientReturning(snapshot({ availableFundsCents: 8750 })),
         sendToContact,
         sendToPhone,
       }
@@ -229,7 +232,9 @@ describe('runAdAccountMonitors', () => {
     expect(state?.payload).toMatchObject({
       low_balance_active: true,
       available_cents: 8750,
-      balance_cents: 8750,
+      // A fatura em aberto é gravada como veio, separada do saldo.
+      balance_cents: 5000,
+      funding_source_display: 'Saldo disponível (R$500,00 BRL)',
       currency: 'BRL',
       consecutive_failures: 0,
     });
@@ -484,7 +489,7 @@ describe('runAdAccountMonitors', () => {
     });
 
     const { db } = fakeDb(fixtures);
-    const createClient = vi.fn(clientReturning(snapshot({ balanceCents: 10 })));
+    const createClient = vi.fn(clientReturning(snapshot({ availableFundsCents: 10 })));
     const sendToPhone = vi.fn();
 
     await runAdAccountMonitors(
@@ -517,7 +522,7 @@ describe('runAdAccountMonitors', () => {
       {},
       {
         now: NOW,
-        createClient: clientReturning(snapshot({ balanceCents: 100 })),
+        createClient: clientReturning(snapshot({ availableFundsCents: 100 })),
         sendToContact,
         sendToPhone,
       }
