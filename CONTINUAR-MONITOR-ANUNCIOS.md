@@ -394,3 +394,90 @@ depende do repositório inteiro e roda no `npm run typecheck`.
 Rode a 050 **depois** do deploy, não antes. Ela zera `cooldown_hours`;
 a versão antiga em produção continuaria funcionando com isso, mas o
 agendador só existe no código novo.
+
+---
+
+# Atualização 4 — 2026-09-22, noite
+
+Uma das contas vai passar a usar cartão em vez de saldo pré-pago.
+
+## Nada de estrutura nova foi necessário
+
+A regra de cobrança parada já cobre conta no cartão — era o "quando o
+cartão parar" do pedido original. Cartão recusado leva a Meta a marcar
+`account_status` 3 ou 9, e o alerta dispara. O usuário escolheu
+explicitamente não monitorar mais nada além disso.
+
+## O que mudou
+
+**Texto do aviso de cobrança parada.** O usuário pediu uma mensagem
+dizendo que o cartão parou por causa do saldo que acabou. Isso só é
+verdade quando a conta tem saldo E cartão: numa conta só de cartão não
+existe saldo, e falar em saldo mandaria o cliente procurar algo
+inexistente. A mensagem passou a olhar `availableCents`:
+
+- zero lido  → "o saldo chegou ao fim e a cobrança no cartão não foi aprovada"
+- null (só cartão) → "a cobrança no cartão não foi aprovada"
+
+A abertura virou "Seus anúncios pararam de rodar", que é o que importa
+para quem recebe. A chamada para ação também ficou condicional:
+"atualize a forma de pagamento" só aparece nos códigos que a pessoa
+resolve sozinha no Gerenciador — mandar isso para uma conta em análise
+de risco só gera frustração.
+
+**Tela.** Conta no cartão mostra "conta no cartão" no lugar do saldo e
+esconde o limite configurado, que nunca vai disparar nela. O sinal é
+`is_prepay_account = false` junto de `available_cents` nulo, campos que
+já existiam no estado; só faltava passá-los para o componente.
+
+## Verificação
+
+117 testes passando, `tsc --noEmit` limpo. As mensagens foram
+renderizadas e lidas uma a uma antes de fechar — foi assim que
+apareceram duas frases emendadas com "então... então", já corrigidas.
+
+---
+
+# Atualização 5 — 2026-09-22, noite
+
+Dois ajustes de texto, pedidos pelo usuário.
+
+## 1. Chamada para ação do cartão
+
+Trocada por "Para voltar a rodar ainda hoje, me chame que libero o
+cartão". Reflete o modelo do negócio: quem tem o cartão é a agência, o
+cliente não atualiza nada no Gerenciador.
+
+Vale só para os códigos em que isso de fato resolve
+(`no_funding_source`, `unsettled`, `in_grace_period`,
+`pending_settlement`). Análise de risco e encerramento continuam com
+"me chama por aqui que eu te explico o que dá para fazer" — prometer
+liberar cartão neles seria mentira. Há teste afirmando que a frase do
+cartão não aparece em análise de risco.
+
+As mensagens também passaram a usar quebra de linha simples entre as
+frases, no formato que o usuário escreveu.
+
+## 2. Aviso de mensagem automática
+
+Toda mensagem para o **cliente** agora começa com:
+
+```
+🤖 _Mensagem automática_
+```
+
+Fica num único lugar: `buildClientMessage` prefixa e delega o corpo a
+`clientBody`. Assim nenhuma mensagem futura nasce sem o aviso por
+esquecimento.
+
+As cópias internas ficaram sem o aviso, de propósito: já se identificam
+pelos emojis (🚨 ⚠️ ✅ 🔌) e vão para quem conhece o sistema. Se o
+usuário quiser lá também, é uma linha.
+
+Também corrigi frases que ficaram com "ela" redundante depois de
+nomear a conta ("Na conta de anúncios *X*, ela foi desativada").
+
+## Verificação
+
+118 testes passando, `tsc --noEmit` limpo. Mensagens renderizadas e
+lidas uma a uma antes de fechar.

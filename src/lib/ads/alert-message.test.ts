@@ -27,14 +27,31 @@ describe('formatMoney', () => {
 });
 
 describe('buildClientMessage', () => {
+  it('avisa que é mensagem automática, em toda mensagem', () => {
+    // Chega no mesmo número em que a pessoa fala com a equipe; sem o
+    // aviso, um "ok, obrigada" ficaria sem resposta e pareceria descaso.
+    for (const kind of [
+      'low_balance',
+      'payment_stopped',
+      'balance_recovered',
+      'payment_recovered',
+    ] as const) {
+      expect(buildClientMessage(kind, CONTEXT)).toMatch(
+        /^🤖 _Mensagem automática_\n\n/
+      );
+    }
+  });
+
   it('chama o cliente pelo primeiro nome', () => {
-    expect(buildClientMessage('low_balance', CONTEXT)).toMatch(/^Oi, Ana!/);
+    expect(buildClientMessage('low_balance', CONTEXT)).toContain('Oi, Ana!');
   });
 
   it('funciona sem nome de contato', () => {
-    expect(
-      buildClientMessage('low_balance', { ...CONTEXT, contactName: null })
-    ).toMatch(/^Oi!/);
+    const text = buildClientMessage('low_balance', {
+      ...CONTEXT,
+      contactName: null,
+    });
+    expect(text).toContain('Oi! O saldo');
   });
 
   it('diz o limite, e só o limite', () => {
@@ -66,14 +83,57 @@ describe('buildClientMessage', () => {
       ...CONTEXT,
       reasonCode: 'no_funding_source',
     });
-    expect(semCartao).toContain('sem forma de pagamento');
+    expect(semCartao).toContain('não há forma de pagamento cadastrada');
     expect(semCartao).not.toContain('account_status');
 
-    const fatura = buildClientMessage('payment_stopped', {
+    const cartao = buildClientMessage('payment_stopped', {
       ...CONTEXT,
       reasonCode: 'unsettled',
     });
-    expect(fatura).toContain('fatura em aberto');
+    expect(cartao).toContain('a cobrança no cartão não foi aprovada');
+  });
+
+  it('abre dizendo que os anúncios pararam, que é o que importa', () => {
+    const text = buildClientMessage('payment_stopped', {
+      ...CONTEXT,
+      reasonCode: 'unsettled',
+    });
+    expect(text).toContain('Oi, Ana! Seus anúncios pararam de rodar.');
+    expect(text).toContain('me chame que libero o cartão');
+  });
+
+  it('conta que o saldo acabou quando foi isso que a leitura mostrou', () => {
+    const text = buildClientMessage('payment_stopped', {
+      ...CONTEXT,
+      reasonCode: 'unsettled',
+      availableCents: 0,
+    });
+    expect(text).toContain('o saldo chegou ao fim');
+    expect(text).toContain('a cobrança no cartão não foi aprovada');
+  });
+
+  it('não fala em saldo numa conta que não tem saldo a ler', () => {
+    // Conta só de cartão: `availableCents` é null, e mandar o cliente
+    // procurar um saldo que não existe esconde a ação certa.
+    const text = buildClientMessage('payment_stopped', {
+      ...CONTEXT,
+      reasonCode: 'unsettled',
+      availableCents: null,
+    });
+    expect(text).not.toContain('saldo');
+    expect(text).toContain('a cobrança no cartão não foi aprovada');
+  });
+
+  it('não diz que os anúncios pararam quando a conta só entrou em análise', () => {
+    const text = buildClientMessage('payment_stopped', {
+      ...CONTEXT,
+      reasonCode: 'risk_review',
+    });
+    expect(text).not.toContain('pararam de rodar');
+    expect(text).toContain('a Meta abriu uma análise');
+    // Liberar cartão não destrava análise de risco; prometer isso aqui
+    // só geraria frustração.
+    expect(text).not.toContain('libero o cartão');
   });
 
   it('não inventa explicação para um motivo desconhecido', () => {
@@ -81,8 +141,9 @@ describe('buildClientMessage', () => {
       ...CONTEXT,
       reasonCode: 'motivo_novo_da_meta',
     });
-    expect(text).toContain('a cobrança da conta de anúncios foi interrompida');
+    expect(text).toContain('a cobrança foi interrompida');
     expect(text).not.toContain('motivo_novo_da_meta');
+    expect(text).not.toContain('saldo');
   });
 
   it('sai igual mesmo sem saldo lido, sem escrever "null"', () => {

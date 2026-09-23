@@ -225,6 +225,30 @@ Um `account_status` que a regra não conhece **não** vira alerta: ele é
 gravado no retrato e ignorado. Inventar significado para um código novo
 da Meta é como se manda a mensagem errada para o cliente.
 
+### Conta no cartão
+
+Numa conta paga no cartão não existe saldo: a Meta cobra por acúmulo,
+não há crédito a esgotar. Essas contas são monitoradas **só** pela
+regra de cobrança acima — que é exatamente o "quando o cartão parar".
+O limite de saldo configurado nunca dispara nelas, e a tela mostra
+"conta no cartão" no lugar do valor para deixar isso claro.
+
+O texto que o cliente recebe muda conforme o que foi lido:
+
+| Situação | O que a mensagem diz |
+| --- | --- |
+| Saldo lido em zero + cobrança recusada | "o saldo chegou ao fim e a cobrança no cartão não foi aprovada" |
+| Conta só de cartão | "a cobrança no cartão não foi aprovada" |
+| Sem forma de pagamento | "não há forma de pagamento cadastrada" |
+
+Nos três, a chamada para ação é **"me chame que libero o cartão"**:
+quem resolve é a agência, não o cliente.
+
+A diferença existe porque falar em saldo para quem não tem saldo manda
+a pessoa procurar algo que não existe, e esconde a ação que resolve.
+Contas em análise de risco ou em encerramento recebem outra chamada
+para ação: atualizar o cartão não destrava nenhuma das duas.
+
 ### Repetição
 
 - O aviso sai quando o problema **começa**, e só isso: `cooldown_hours`
@@ -287,14 +311,31 @@ src/app/(dashboard)/ads-monitor/
 
 Testes: `account-health.test.ts`, `meta-ads-client.test.ts`,
 `alert-message.test.ts`, `monitor-runner.test.ts` e
-`api/ads/monitor/cron/route.test.ts` — 113 casos no total.
+`api/ads/monitor/cron/route.test.ts` — 118 casos no total.
 
 ## 4.1 O que o cliente recebe
 
+Toda mensagem que vai para o cliente começa com
+`🤖 _Mensagem automática_`. Ela chega no mesmo número em que a pessoa
+conversa com a equipe; sem o aviso, um "ok, obrigada" ficaria sem
+resposta e pareceria descaso. As cópias internas não levam o aviso —
+elas já se identificam pelo emoji e vão para quem conhece o sistema.
+
 O aviso de saldo diz só que o saldo ficou abaixo do limite:
 
+> 🤖 _Mensagem automática_
+>
 > Oi, Ana! O saldo da conta de anúncios **Loja da Ana** está abaixo de
 > R$ 100,00.
+
+O de cobrança parada, numa conta com cartão:
+
+> 🤖 _Mensagem automática_
+>
+> Oi, Ana! Seus anúncios pararam de rodar.
+> Na conta de anúncios **Loja da Ana**, o saldo chegou ao fim e a
+> cobrança no cartão não foi aprovada.
+> Para voltar a rodar ainda hoje, me chame que libero o cartão.
 
 Sem o saldo exato, de propósito: o número já estará velho quando a
 pessoa abrir o Gerenciador de Anúncios, e uma mensagem de WhatsApp pode

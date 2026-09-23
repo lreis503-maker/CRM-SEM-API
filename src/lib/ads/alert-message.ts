@@ -57,21 +57,77 @@ export function formatMoney(cents: number, currency: string): string {
   }
 }
 
-/** O que o cliente precisa saber sobre cada tipo de parada. */
+/**
+ * O que aconteceu, na voz do cliente.
+ *
+ * Os três primeiros são falha de cobrança no cartão. `unsettled` tem
+ * duas versões porque a causa muda a ação: numa conta que tem saldo e
+ * cartão juntos, o saldo acabou e a Meta tentou o cartão; numa conta
+ * só de cartão não existe saldo, e falar em saldo mandaria a pessoa
+ * procurar algo que não existe.
+ */
 const PAYMENT_ISSUE_CLIENT: Record<PaymentIssueCode, string> = {
-  no_funding_source:
-    'a conta está sem forma de pagamento cadastrada, então os anúncios não vão entregar',
-  unsettled:
-    'há uma fatura em aberto que não foi paga — normalmente é o cartão que foi recusado',
+  no_funding_source: 'não há forma de pagamento cadastrada',
+  unsettled: 'a cobrança no cartão não foi aprovada',
   in_grace_period:
-    'o pagamento falhou e a conta está no prazo extra da Meta antes de ser bloqueada',
+    'a cobrança no cartão falhou e a conta está no prazo extra da Meta antes de ser bloqueada',
   pending_settlement:
-    'a Meta está tentando cobrar e ainda não conseguiu concluir o pagamento',
-  risk_review: 'a conta entrou em análise da Meta e a entrega foi interrompida',
-  disabled: 'a conta de anúncios foi desativada pela Meta',
-  pending_closure: 'a conta de anúncios está em processo de encerramento',
-  closed: 'a conta de anúncios foi encerrada',
+    'a Meta está tentando cobrar o cartão e ainda não conseguiu concluir',
+  // Redigidos para encaixar depois de "Na conta de anúncios *X*, ".
+  risk_review: 'a Meta abriu uma análise',
+  disabled: 'a Meta desativou a veiculação',
+  pending_closure: 'há um encerramento em andamento',
+  closed: 'o encerramento foi concluído',
 };
+
+/**
+ * A versão de quando o saldo lido era zero: aí a sequência inteira é
+ * conhecida e vale contar, porque explica por que parou justo agora.
+ */
+const PAYMENT_ISSUE_CLIENT_OUT_OF_FUNDS: Partial<
+  Record<PaymentIssueCode, string>
+> = {
+  unsettled:
+    'o saldo chegou ao fim e a cobrança no cartão não foi aprovada',
+  in_grace_period:
+    'o saldo chegou ao fim, a cobrança no cartão falhou e a conta está no prazo extra da Meta',
+  pending_settlement:
+    'o saldo chegou ao fim e a Meta ainda não conseguiu concluir a cobrança no cartão',
+};
+
+/** Códigos em que a entrega para na hora. Os demais variam. */
+const STOPS_DELIVERY: ReadonlySet<PaymentIssueCode> = new Set([
+  'no_funding_source',
+  'unsettled',
+  'in_grace_period',
+  'pending_settlement',
+  'disabled',
+  'closed',
+]);
+
+/**
+ * Códigos em que quem resolve é a agência, liberando o cartão.
+ *
+ * O cliente não mexe em nada: a chamada para ação é chamar no WhatsApp.
+ * Os demais códigos (análise de risco, encerramento) não se resolvem
+ * assim, e prometer isso neles só geraria frustração.
+ */
+const FIXABLE_BY_PAYMENT: ReadonlySet<PaymentIssueCode> = new Set([
+  'no_funding_source',
+  'unsettled',
+  'in_grace_period',
+  'pending_settlement',
+]);
+
+/**
+ * Aviso no topo de toda mensagem que vai para o cliente.
+ *
+ * Existe porque quem recebe não tem como saber que do outro lado é um
+ * robô: a mensagem chega no mesmo número em que a pessoa conversa com
+ * a equipe. Sem o aviso, um "ok, obrigada" ficaria sem resposta e
+ * pareceria descaso.
+ */
+const AUTOMATIC_NOTICE = '🤖 _Mensagem automática_';
 
 /** O que a equipe faz a respeito. */
 const PAYMENT_ISSUE_INTERNAL: Record<PaymentIssueCode, string> = {
@@ -104,6 +160,10 @@ export function buildClientMessage(
   kind: AlertKind,
   context: AlertMessageContext
 ): string {
+  return `${AUTOMATIC_NOTICE}\n\n${clientBody(kind, context)}`;
+}
+
+function clientBody(kind: AlertKind, context: AlertMessageContext): string {
   const { accountLabel, currency, thresholdCents } = context;
   const hello = greeting(context.contactName);
 
@@ -119,15 +179,40 @@ export function buildClientMessage(
       );
 
     case 'payment_stopped': {
-      const motivo = isPaymentIssueCode(context.reasonCode)
-        ? PAYMENT_ISSUE_CLIENT[context.reasonCode]
-        : 'a cobrança da conta de anúncios foi interrompida';
+      const code = isPaymentIssueCode(context.reasonCode)
+        ? context.reasonCode
+        : null;
+
+      if (code === null) {
+        return (
+          `${hello}Seus anúncios pararam de rodar.\n` +
+          `Na conta de anúncios *${accountLabel}*, a cobrança foi interrompida.\n` +
+          'Me chama por aqui que eu te explico o que dá para fazer.'
+        );
+      }
+
+      // Saldo zerado que conhecemos conta a história inteira; nos
+      // demais casos a frase genérica é a honesta.
+      const outOfFunds =
+        context.availableCents === 0
+          ? PAYMENT_ISSUE_CLIENT_OUT_OF_FUNDS[code]
+          : undefined;
+      const motivo = outOfFunds ?? PAYMENT_ISSUE_CLIENT[code];
+
+      // A abertura já diz que parou, então o motivo não repete a
+      // consequência — foi o que produziu frases com dois "então".
+      const abertura = STOPS_DELIVERY.has(code)
+        ? 'Seus anúncios pararam de rodar.'
+        : 'Preciso te avisar de uma coisa importante.';
+
+      const acao = FIXABLE_BY_PAYMENT.has(code)
+        ? 'Para voltar a rodar ainda hoje, me chame que libero o cartão.'
+        : 'Me chama por aqui que eu te explico o que dá para fazer.';
+
       return (
-        `${hello}Preciso te avisar de uma coisa importante: na conta de ` +
-        `anúncios *${accountLabel}*, ${motivo}.\n\n` +
-        'Enquanto isso não for resolvido, os anúncios ficam fora do ar. ' +
-        'Dá para resolver atualizando a forma de pagamento no Gerenciador ' +
-        'de Anúncios. Se preferir, me chama por aqui que eu te acompanho no passo a passo.'
+        `${hello}${abertura}\n` +
+        `Na conta de anúncios *${accountLabel}*, ${motivo}.\n` +
+        acao
       );
     }
 
