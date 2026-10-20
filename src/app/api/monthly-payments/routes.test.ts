@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   softDeleteReminder: vi.fn(),
   listDeliveries: vi.fn(),
   getReminder: vi.fn(),
+  sendMonthlyPaymentMessage: vi.fn(),
   from: vi.fn(),
 }));
 
@@ -32,10 +33,14 @@ vi.mock('@/lib/monthly-payments/repository', () => ({
   listDeliveries: mocks.listDeliveries,
   getReminder: mocks.getReminder,
 }));
+vi.mock('@/lib/monthly-payments/runner', () => ({
+  sendMonthlyPaymentMessage: mocks.sendMonthlyPaymentMessage,
+}));
 
 import { GET, POST } from './route';
 import { DELETE, PUT } from './[id]/route';
 import { GET as GET_DELIVERIES } from './[id]/deliveries/route';
+import { POST as POST_TEST } from './[id]/test/route';
 
 const context = { accountId: 'account-a', userId: 'user-a', role: 'admin' };
 
@@ -48,6 +53,16 @@ beforeEach(() => {
   mocks.setReminderEnabled.mockResolvedValue({ id: 'reminder-1', enabled: false });
   mocks.softDeleteReminder.mockResolvedValue(undefined);
   mocks.listDeliveries.mockResolvedValue([]);
+  mocks.getReminder.mockResolvedValue({
+    id: 'r-1',
+    account_id: 'account-a',
+    recipient_kind: 'manual',
+    recipient_name: 'Maria',
+    recipient_phone: '5511999990000',
+    amount_cents: 50_000,
+    currency: 'BRL',
+  });
+  mocks.sendMonthlyPaymentMessage.mockResolvedValue({ providerMessageId: 'message-1' });
   mocks.from.mockReturnValue({
     select: () => ({
       eq: () => ({ maybeSingle: async () => ({ data: { provider: 'uazapi' }, error: null }) }),
@@ -135,5 +150,30 @@ describe('monthly payments routes', () => {
     });
     expect(history.status).toBe(200);
     expect(mocks.listDeliveries).toHaveBeenCalledWith(expect.anything(), 'account-a', 'r-1');
+  });
+
+  it('sends a test without creating a delivery competence', async () => {
+    const response = await POST_TEST(new Request('http://localhost'), {
+      params: Promise.resolve({ id: 'r-1' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(mocks.getReminder).toHaveBeenCalledWith(expect.anything(), 'account-a', 'r-1');
+    expect(mocks.sendMonthlyPaymentMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        competence: expect.stringMatching(/^\d{4}-\d{2}-01$/),
+        trackId: expect.stringContaining('monthly-payment-test:r-1'),
+      }),
+    );
+    expect(mocks.createReminder).not.toHaveBeenCalled();
+  });
+
+  it('returns a safe error when a test send fails', async () => {
+    mocks.sendMonthlyPaymentMessage.mockRejectedValue(new Error('provider refused'));
+    const response = await POST_TEST(new Request('http://localhost'), {
+      params: Promise.resolve({ id: 'r-1' }),
+    });
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({ error: 'provider refused' });
   });
 });
