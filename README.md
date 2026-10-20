@@ -36,6 +36,8 @@ clone-o ou crie uma cópia para executar seu próprio CRM.
   leitura e substituição de variáveis para cada destinatário.
 - **Automações visuais** acionadas por mensagens recebidas, novos contatos,
   palavras-chave ou agendamentos. Incluem condições, esperas, etiquetas e webhooks.
+- **Mensalidades automáticas** com valor, dia e horário configuráveis, repetição
+  mensal até pausar, envio de teste e histórico de sucesso ou erro.
 - **Assistente de respostas com IA** usando sua própria chave da OpenAI ou
   Anthropic, armazenada de forma criptografada. Você paga diretamente ao provedor,
   sem taxa de IA por atendente. Sugira respostas na caixa de entrada ou ative um
@@ -175,6 +177,8 @@ em [ArnasDon/wacrm-site](https://github.com/ArnasDon/wacrm-site).
   aplicativos da Meta e lista de segredos em `META_APP_SECRET`.
 - [API pública](./docs/public-api.md)
 - [Integração MCP](./docs/mcp.md)
+- [Mensalidades automáticas](./docs/monthly-payments.md): configuração, operação,
+  cron externo, tentativas e limitações dos provedores de WhatsApp.
 
 ## Tecnologias
 

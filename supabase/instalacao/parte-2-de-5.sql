@@ -1,10 +1,10 @@
 -- ============================================================
--- CRM - BANCO DE DADOS - PARTE 2 DE 4
+-- CRM - BANCO DE DADOS - PARTE 2 DE 5
 --
 -- Cole ESTE arquivo inteiro no SQL Editor do Supabase e clique
 -- em Run. Depois volte e faca o mesmo com a parte 3.
 --
--- IMPORTANTE: rode as partes NA ORDEM, da 1 ate a 4.
+-- IMPORTANTE: rode as partes NA ORDEM, da 1 ate a 5.
 --
 -- Contem: 016_flow_media.sql ate 022_contact_phone_dedup.sql
 --

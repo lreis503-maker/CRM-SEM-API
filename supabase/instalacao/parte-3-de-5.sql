@@ -1,10 +1,10 @@
 -- ============================================================
--- CRM - BANCO DE DADOS - PARTE 3 DE 4
+-- CRM - BANCO DE DADOS - PARTE 3 DE 5
 --
 -- Cole ESTE arquivo inteiro no SQL Editor do Supabase e clique
 -- em Run. Depois volte e faca o mesmo com a parte 4.
 --
--- IMPORTANTE: rode as partes NA ORDEM, da 1 ate a 4.
+-- IMPORTANTE: rode as partes NA ORDEM, da 1 ate a 5.
 --
 -- Contem: 023_chat_media.sql ate 037_webhook_broadcast_reliability.sql
 --

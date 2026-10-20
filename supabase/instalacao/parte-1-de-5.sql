@@ -1,10 +1,10 @@
 -- ============================================================
--- CRM - BANCO DE DADOS - PARTE 1 DE 4
+-- CRM - BANCO DE DADOS - PARTE 1 DE 5
 --
 -- Cole ESTE arquivo inteiro no SQL Editor do Supabase e clique
 -- em Run. Depois volte e faca o mesmo com a parte 2.
 --
--- IMPORTANTE: rode as partes NA ORDEM, da 1 ate a 4.
+-- IMPORTANTE: rode as partes NA ORDEM, da 1 ate a 5.
 --
 -- Contem: 001_initial_schema.sql ate 015_whatsapp_config_registration.sql
 --

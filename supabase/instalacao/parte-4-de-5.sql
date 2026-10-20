@@ -1,12 +1,12 @@
 -- ============================================================
--- CRM - BANCO DE DADOS - PARTE 4 DE 4
+-- CRM - BANCO DE DADOS - PARTE 4 DE 5
 --
 -- Cole ESTE arquivo inteiro no SQL Editor do Supabase e clique
--- em Run. Depois volte e faca o mesmo com a parte (acabou).
+-- em Run. Depois volte e faca o mesmo com a parte 5.
 --
--- IMPORTANTE: rode as partes NA ORDEM, da 1 ate a 4.
+-- IMPORTANTE: rode as partes NA ORDEM, da 1 ate a 5.
 --
--- Contem: 038_broadcast_resume.sql ate 046_history_import_message_cursor.sql
+-- Contem: 038_broadcast_resume.sql ate 052_deal_value_required_in_negotiation.sql
 --
 -- E seguro rodar de novo se voce se perder: tudo aqui usa
 -- IF NOT EXISTS ou DROP ... IF EXISTS, entao repetir uma parte
@@ -487,6 +487,160 @@ COMMENT ON COLUMN messages.error_details IS
   'Meta''s human-readable explanation from a failed status webhook '
   '(errors[0].error_data.details). NULL unless the message failed and Meta '
   'supplied details.';
+
+
+-- ------------------------------------------------------------
+-- 043_instagram_messaging.sql
+-- ------------------------------------------------------------
+
+-- ============================================================
+-- 043_instagram_messaging
+--
+-- Instagram Direct as an independent messaging channel. Fully
+-- separate from contacts/conversations/messages (WhatsApp) — no
+-- shared rows, no merged contact identity. See
+-- docs/superpowers/specs/2026-09-15-instagram-integration-design.md
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS instagram_config (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  page_id TEXT NOT NULL,
+  ig_user_id TEXT NOT NULL,
+  ig_username TEXT,
+  page_access_token TEXT NOT NULL,
+  verify_token TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'disconnected' CHECK (status IN ('connected', 'disconnected')),
+  connected_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(account_id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_instagram_config_ig_user_id ON instagram_config(ig_user_id);
+
+ALTER TABLE instagram_config ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Account members can view instagram config" ON instagram_config;
+DROP POLICY IF EXISTS "Account admins can manage instagram config" ON instagram_config;
+CREATE POLICY "Account members can view instagram config" ON instagram_config
+  FOR SELECT USING (is_account_member(account_id));
+CREATE POLICY "Account admins can manage instagram config" ON instagram_config
+  FOR ALL USING (is_account_member(account_id, 'admin')) WITH CHECK (is_account_member(account_id, 'admin'));
+
+CREATE TABLE IF NOT EXISTS instagram_contacts (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  igsid TEXT NOT NULL,
+  username TEXT,
+  name TEXT,
+  profile_pic_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(account_id, igsid)
+);
+
+CREATE INDEX IF NOT EXISTS idx_instagram_contacts_account ON instagram_contacts(account_id);
+
+ALTER TABLE instagram_contacts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Account members can view instagram contacts" ON instagram_contacts;
+DROP POLICY IF EXISTS "Account agents can manage instagram contacts" ON instagram_contacts;
+CREATE POLICY "Account members can view instagram contacts" ON instagram_contacts
+  FOR SELECT USING (is_account_member(account_id));
+CREATE POLICY "Account agents can manage instagram contacts" ON instagram_contacts
+  FOR ALL USING (is_account_member(account_id, 'agent')) WITH CHECK (is_account_member(account_id, 'agent'));
+
+CREATE TABLE IF NOT EXISTS instagram_conversations (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  contact_id UUID NOT NULL REFERENCES instagram_contacts(id) ON DELETE CASCADE,
+  last_message_text TEXT,
+  last_message_at TIMESTAMPTZ,
+  last_customer_message_at TIMESTAMPTZ,
+  unread_count INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(account_id, contact_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_instagram_conversations_account ON instagram_conversations(account_id);
+CREATE INDEX IF NOT EXISTS idx_instagram_conversations_contact ON instagram_conversations(contact_id);
+
+ALTER TABLE instagram_conversations ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Account members can view instagram conversations" ON instagram_conversations;
+DROP POLICY IF EXISTS "Account agents can manage instagram conversations" ON instagram_conversations;
+CREATE POLICY "Account members can view instagram conversations" ON instagram_conversations
+  FOR SELECT USING (is_account_member(account_id));
+CREATE POLICY "Account agents can manage instagram conversations" ON instagram_conversations
+  FOR ALL USING (is_account_member(account_id, 'agent')) WITH CHECK (is_account_member(account_id, 'agent'));
+
+CREATE TABLE IF NOT EXISTS instagram_messages (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  conversation_id UUID NOT NULL REFERENCES instagram_conversations(id) ON DELETE CASCADE,
+  sender_type TEXT NOT NULL CHECK (sender_type IN ('customer', 'agent')),
+  sender_id UUID,
+  content_type TEXT NOT NULL DEFAULT 'text' CHECK (content_type IN (
+    'text', 'image', 'video', 'audio', 'file', 'share', 'story_mention', 'story_reply', 'unsupported'
+  )),
+  content_text TEXT,
+  media_url TEXT,
+  media_type TEXT,
+  ig_message_id TEXT,
+  reply_to_message_id UUID REFERENCES instagram_messages(id) ON DELETE SET NULL,
+  status TEXT NOT NULL DEFAULT 'sent' CHECK (status IN ('sending', 'sent', 'delivered', 'failed')),
+  error_message TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_instagram_messages_conversation ON instagram_messages(conversation_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_instagram_messages_conv_ig_id
+  ON instagram_messages(conversation_id, ig_message_id) WHERE ig_message_id IS NOT NULL;
+
+ALTER TABLE instagram_messages ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Account members can view instagram messages" ON instagram_messages;
+DROP POLICY IF EXISTS "Account agents can manage instagram messages" ON instagram_messages;
+CREATE POLICY "Account members can view instagram messages" ON instagram_messages
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM instagram_conversations c
+      WHERE c.id = instagram_messages.conversation_id AND is_account_member(c.account_id)
+    )
+  );
+CREATE POLICY "Account agents can manage instagram messages" ON instagram_messages
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM instagram_conversations c
+      WHERE c.id = instagram_messages.conversation_id AND is_account_member(c.account_id, 'agent')
+    )
+  ) WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM instagram_conversations c
+      WHERE c.id = instagram_messages.conversation_id AND is_account_member(c.account_id, 'agent')
+    )
+  );
+
+DROP TRIGGER IF EXISTS set_updated_at ON instagram_config;
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON instagram_config FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS set_updated_at ON instagram_contacts;
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON instagram_contacts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS set_updated_at ON instagram_conversations;
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON instagram_conversations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'instagram_messages'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE instagram_messages;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'instagram_conversations'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE instagram_conversations;
+  END IF;
+END $$;
 
 
 -- ------------------------------------------------------------
@@ -974,3 +1128,586 @@ COMMENT ON COLUMN whatsapp_history_imports.message_offset IS
 
 COMMENT ON COLUMN whatsapp_history_imports.chat_offset IS
   'Chats already walked to the end. The chat AT this offset is the one message_offset refers to.';
+
+
+-- ------------------------------------------------------------
+-- 047_ad_account_monitor.sql
+-- ------------------------------------------------------------
+
+-- ============================================================
+-- 047_ad_account_monitor
+--
+-- Monitoramento das contas de anúncio dos clientes e aviso no
+-- WhatsApp quando o saldo cai abaixo do limite ou quando a cobrança
+-- para (cartão recusado, conta sem forma de pagamento, conta
+-- desativada por pagamento).
+--
+-- O token de usuário de sistema do Business Manager é uma credencial
+-- da conta do CRM, não do navegador: ele fica em
+-- `ad_platform_credential_secrets`, uma tabela com RLS ligada e sem
+-- nenhuma policy, exatamente como `whatsapp_config_secrets` na 043.
+-- ============================================================
+
+-- ============================================================
+-- Credencial da plataforma de anúncios (uma por conta do CRM)
+--
+-- Esta linha é legível pelo navegador: ela guarda só metadados
+-- (rótulo, id do Business Manager, quando foi validada pela última
+-- vez). O token nunca passa por aqui.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS ad_platform_credentials (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  platform TEXT NOT NULL DEFAULT 'meta' CHECK (platform IN ('meta')),
+  -- Como o usuário reconhece esta credencial na tela.
+  label TEXT,
+  -- Business Manager dono do token, quando informado. Serve para
+  -- diagnóstico: um token do BM errado não enxerga as contas.
+  business_id TEXT,
+  -- Resultado da última chamada de validação. `error` aqui é a
+  -- mensagem que a tela mostra; nunca carrega o token.
+  last_verified_at TIMESTAMPTZ,
+  last_verify_error TEXT,
+  -- Número interno que recebe a cópia de todo alerta, em E.164
+  -- (ex.: +5511999999999). Fica aqui, e não numa variável de
+  -- ambiente, porque cada conta do CRM tem a sua equipe.
+  internal_notify_phone TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- Uma credencial por plataforma por conta. O token de sistema do BM
+  -- da agência já enxerga todas as contas de cliente compartilhadas
+  -- com ele, então não há motivo para permitir várias.
+  UNIQUE (account_id, platform)
+);
+
+ALTER TABLE ad_platform_credentials ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS ad_platform_credentials_select ON ad_platform_credentials;
+DROP POLICY IF EXISTS ad_platform_credentials_insert ON ad_platform_credentials;
+DROP POLICY IF EXISTS ad_platform_credentials_update ON ad_platform_credentials;
+DROP POLICY IF EXISTS ad_platform_credentials_delete ON ad_platform_credentials;
+CREATE POLICY ad_platform_credentials_select ON ad_platform_credentials
+  FOR SELECT USING (is_account_member(account_id));
+CREATE POLICY ad_platform_credentials_insert ON ad_platform_credentials
+  FOR INSERT WITH CHECK (is_account_member(account_id, 'admin'));
+CREATE POLICY ad_platform_credentials_update ON ad_platform_credentials
+  FOR UPDATE USING (is_account_member(account_id, 'admin'));
+CREATE POLICY ad_platform_credentials_delete ON ad_platform_credentials
+  FOR DELETE USING (is_account_member(account_id, 'admin'));
+
+-- ============================================================
+-- Token da plataforma — somente service role
+--
+-- Sem policies de propósito: o navegador não tem caminho até esta
+-- tabela nem com RLS correta em outro lugar. O formato conferido é o
+-- do AES-256-GCM de src/lib/whatsapp/encryption.ts: IV de 12 bytes,
+-- ciphertext não vazio e tag de autenticação de 16 bytes.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS ad_platform_credential_secrets (
+  credential_id UUID PRIMARY KEY
+    REFERENCES ad_platform_credentials(id) ON DELETE CASCADE,
+  access_token TEXT NOT NULL,
+  CONSTRAINT ad_platform_credential_secrets_access_token_encrypted_check
+    CHECK (access_token ~ '^[0-9A-Fa-f]{24}:[0-9A-Fa-f]+:[0-9A-Fa-f]{32}$')
+);
+
+ALTER TABLE ad_platform_credential_secrets ENABLE ROW LEVEL SECURITY;
+
+COMMENT ON TABLE ad_platform_credential_secrets IS
+  'Token de usuário de sistema da plataforma de anúncios. Só o service role alcança.';
+COMMENT ON COLUMN ad_platform_credential_secrets.access_token IS
+  'Ciphertext AES-256-GCM do helper de criptografia do servidor; nunca texto claro.';
+
+-- ============================================================
+-- Contas de anúncio monitoradas
+-- ============================================================
+CREATE TABLE IF NOT EXISTS ad_account_monitors (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  platform TEXT NOT NULL DEFAULT 'meta' CHECK (platform IN ('meta')),
+  -- Só os dígitos, sem o prefixo `act_`. A API recebe o prefixo; o
+  -- banco guarda a forma canônica para a UNIQUE abaixo funcionar
+  -- mesmo se a pessoa colar "act_123" numa vez e "123" na outra.
+  external_account_id TEXT NOT NULL
+    CHECK (external_account_id ~ '^[0-9]{1,32}$'),
+  -- Nome que a Meta devolve, atualizado a cada leitura. Cai para o id
+  -- quando a conta ainda não foi lida uma vez.
+  display_name TEXT,
+  -- Contato do CRM que recebe o aviso. ON DELETE SET NULL porque
+  -- apagar o contato não deve apagar o histórico de alertas nem parar
+  -- o monitoramento: a cópia interna continua saindo.
+  contact_id UUID REFERENCES contacts(id) ON DELETE SET NULL,
+  -- Limite de saldo baixo, na menor unidade da moeda da conta de
+  -- anúncio (centavos). R$ 100,00 = 10000.
+  low_balance_threshold_cents BIGINT NOT NULL DEFAULT 10000
+    CHECK (low_balance_threshold_cents >= 0),
+  -- Moeda lida da Meta, guardada para formatar a mensagem sem uma
+  -- segunda chamada. Preenchida na primeira leitura.
+  currency TEXT,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  notify_client BOOLEAN NOT NULL DEFAULT TRUE,
+  notify_internal BOOLEAN NOT NULL DEFAULT TRUE,
+  -- Enquanto o problema continua, o aviso se repete no máximo uma vez
+  -- por esse intervalo. Zero significa avisar só na transição.
+  cooldown_hours INTEGER NOT NULL DEFAULT 24
+    CHECK (cooldown_hours >= 0 AND cooldown_hours <= 720),
+  created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (account_id, platform, external_account_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ad_account_monitors_account
+  ON ad_account_monitors(account_id)
+  WHERE enabled;
+CREATE INDEX IF NOT EXISTS idx_ad_account_monitors_contact
+  ON ad_account_monitors(account_id, contact_id);
+
+ALTER TABLE ad_account_monitors ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS ad_account_monitors_select ON ad_account_monitors;
+DROP POLICY IF EXISTS ad_account_monitors_insert ON ad_account_monitors;
+DROP POLICY IF EXISTS ad_account_monitors_update ON ad_account_monitors;
+DROP POLICY IF EXISTS ad_account_monitors_delete ON ad_account_monitors;
+CREATE POLICY ad_account_monitors_select ON ad_account_monitors
+  FOR SELECT USING (is_account_member(account_id));
+CREATE POLICY ad_account_monitors_insert ON ad_account_monitors
+  FOR INSERT WITH CHECK (is_account_member(account_id, 'admin'));
+CREATE POLICY ad_account_monitors_update ON ad_account_monitors
+  FOR UPDATE USING (is_account_member(account_id, 'admin'));
+CREATE POLICY ad_account_monitors_delete ON ad_account_monitors
+  FOR DELETE USING (is_account_member(account_id, 'admin'));
+
+-- ============================================================
+-- Última leitura e estado do alerta
+--
+-- Uma linha por monitor. É aqui que mora a decisão de não repetir o
+-- mesmo aviso: `*_active` guarda se o problema já estava valendo na
+-- leitura anterior e `*_alert_at` quando o último aviso saiu.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS ad_account_monitor_state (
+  monitor_id UUID PRIMARY KEY
+    REFERENCES ad_account_monitors(id) ON DELETE CASCADE,
+  account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  checked_at TIMESTAMPTZ,
+
+  -- Campos crus da Meta, em centavos, exatamente como vieram. Guardados
+  -- para o usuário conferir contra o Gerenciador de Anúncios sem
+  -- precisar de outra chamada: a Meta não expõe um único campo
+  -- "saldo restante" e o cálculo muda entre conta pré-paga e pós-paga.
+  balance_cents BIGINT,
+  amount_spent_cents BIGINT,
+  spend_cap_cents BIGINT,
+  -- O saldo que a regra de alerta realmente comparou, ou NULL quando a
+  -- conta é pós-paga sem limite de gastos e não existe saldo a comparar.
+  available_cents BIGINT,
+  currency TEXT,
+  is_prepay_account BOOLEAN,
+  account_status INTEGER,
+  disable_reason INTEGER,
+  has_funding_source BOOLEAN,
+
+  low_balance_active BOOLEAN NOT NULL DEFAULT FALSE,
+  low_balance_alert_at TIMESTAMPTZ,
+  payment_issue_active BOOLEAN NOT NULL DEFAULT FALSE,
+  payment_issue_alert_at TIMESTAMPTZ,
+  -- Código estável do problema de cobrança (ex.: 'unsettled',
+  -- 'no_funding_source'). Trocar de código conta como problema novo.
+  payment_issue_code TEXT,
+
+  -- Leituras que falharam em sequência. Serve para não gritar a cada
+  -- 15 minutos quando a Meta está fora do ar.
+  consecutive_failures INTEGER NOT NULL DEFAULT 0
+    CHECK (consecutive_failures >= 0),
+  last_error TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE ad_account_monitor_state ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS ad_account_monitor_state_select ON ad_account_monitor_state;
+CREATE POLICY ad_account_monitor_state_select ON ad_account_monitor_state
+  FOR SELECT USING (is_account_member(account_id));
+-- Sem policy de escrita: só o runner, com service role, escreve aqui.
+
+-- ============================================================
+-- Histórico de avisos enviados
+-- ============================================================
+CREATE TABLE IF NOT EXISTS ad_account_alerts (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  monitor_id UUID REFERENCES ad_account_monitors(id) ON DELETE SET NULL,
+  kind TEXT NOT NULL CHECK (kind IN (
+    'low_balance',
+    'payment_stopped',
+    'balance_recovered',
+    'payment_recovered',
+    -- A leitura na Meta falhou de um jeito que precisa de ação
+    -- humana (token expirado, acesso removido). Só cópia interna:
+    -- não é problema do cliente.
+    'read_failed'
+  )),
+  -- Motivo legível estável, ex.: 'unsettled', 'no_funding_source',
+  -- 'disabled', 'below_threshold'.
+  reason_code TEXT,
+  -- O texto que saiu no WhatsApp, guardado como foi enviado.
+  message TEXT NOT NULL,
+  -- Números da leitura que gerou o aviso, para auditoria.
+  snapshot JSONB,
+  contact_id UUID REFERENCES contacts(id) ON DELETE SET NULL,
+  -- 'sent', 'partial' (uma das duas pontas falhou), 'failed', 'skipped'.
+  delivery_status TEXT NOT NULL DEFAULT 'sent'
+    CHECK (delivery_status IN ('sent', 'partial', 'failed', 'skipped')),
+  client_error TEXT,
+  internal_error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ad_account_alerts_account_created
+  ON ad_account_alerts(account_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ad_account_alerts_monitor_created
+  ON ad_account_alerts(monitor_id, created_at DESC);
+
+ALTER TABLE ad_account_alerts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS ad_account_alerts_select ON ad_account_alerts;
+CREATE POLICY ad_account_alerts_select ON ad_account_alerts
+  FOR SELECT USING (is_account_member(account_id));
+-- Sem policy de escrita: o histórico é escrito só pelo runner.
+
+
+-- ------------------------------------------------------------
+-- 048_ad_platform_multi_portfolio.sql
+-- ------------------------------------------------------------
+
+-- ============================================================
+-- 048_ad_platform_multi_portfolio
+--
+-- A 047 assumiu um portfólio empresarial por conta do CRM: uma
+-- credencial, um token, e todo monitor lia por ela. Uma agência com
+-- dois portfólios precisa de dois tokens, porque o usuário de sistema
+-- de um portfólio não enxerga as contas de anúncio do outro.
+--
+-- Esta migração:
+--   1. permite várias credenciais por conta do CRM, cada uma com um
+--      rótulo que identifica o portfólio;
+--   2. liga cada conta de anúncio monitorada à credencial do portfólio
+--      a que ela pertence.
+--
+-- Segura de rodar mais de uma vez.
+-- ============================================================
+
+-- ============================================================
+-- 1. Uma credencial por portfólio, não por conta do CRM
+-- ============================================================
+
+-- O rótulo deixa de ser enfeite e passa a ser como a pessoa distingue
+-- um portfólio do outro na tela. Linhas antigas ganham um nome antes
+-- de a coluna virar obrigatória.
+UPDATE ad_platform_credentials
+   SET label = 'Portfólio principal'
+ WHERE label IS NULL OR btrim(label) = '';
+
+ALTER TABLE ad_platform_credentials
+  ALTER COLUMN label SET NOT NULL;
+
+-- A unicidade antiga (account_id, platform) é justamente o que
+-- impedia o segundo portfólio.
+ALTER TABLE ad_platform_credentials
+  DROP CONSTRAINT IF EXISTS ad_platform_credentials_account_id_platform_key;
+
+-- Dois portfólios com o mesmo nome na mesma conta do CRM só criariam
+-- confusão na hora de escolher qual usar.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ad_platform_credentials_account_label
+  ON ad_platform_credentials(account_id, platform, lower(btrim(label)));
+
+COMMENT ON COLUMN ad_platform_credentials.label IS
+  'Nome do portfólio empresarial, como a equipe o reconhece. Único por conta.';
+
+-- ============================================================
+-- 2. Cada conta de anúncio sabe de qual portfólio ela vem
+-- ============================================================
+ALTER TABLE ad_account_monitors
+  ADD COLUMN IF NOT EXISTS credential_id UUID
+    REFERENCES ad_platform_credentials(id) ON DELETE RESTRICT;
+
+COMMENT ON COLUMN ad_account_monitors.credential_id IS
+  'Portfólio cujo token lê esta conta. RESTRICT: remover um portfólio com contas ligadas é recusado, em vez de apagá-las em silêncio.';
+
+-- Backfill: quem já existia pertence ao único portfólio que a conta
+-- tinha. O filtro de contagem evita atribuir errado numa conta que,
+-- por algum motivo, já tivesse mais de uma credencial.
+UPDATE ad_account_monitors AS m
+   SET credential_id = c.id
+  FROM ad_platform_credentials AS c
+ WHERE m.credential_id IS NULL
+   AND c.account_id = m.account_id
+   AND c.platform = m.platform
+   AND (
+     SELECT count(*) FROM ad_platform_credentials AS c2
+      WHERE c2.account_id = m.account_id AND c2.platform = m.platform
+   ) = 1;
+
+-- NOT NULL só quando o backfill cobriu tudo. Uma conta do CRM que
+-- tenha monitores mas nenhuma credencial (credencial apagada à mão,
+-- por exemplo) não deve derrubar a migração: o runner já trata
+-- credential_id nulo pulando o monitor e gravando o motivo.
+DO $$
+DECLARE
+  v_orphans INTEGER;
+BEGIN
+  SELECT count(*) INTO v_orphans
+    FROM ad_account_monitors WHERE credential_id IS NULL;
+
+  IF v_orphans = 0 THEN
+    BEGIN
+      ALTER TABLE ad_account_monitors
+        ALTER COLUMN credential_id SET NOT NULL;
+    EXCEPTION WHEN others THEN
+      RAISE NOTICE 'credential_id continua opcional: %', SQLERRM;
+    END;
+  ELSE
+    RAISE NOTICE
+      '% monitor(es) sem portfólio. Abra /ads-monitor e escolha o portfólio de cada conta.',
+      v_orphans;
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_ad_account_monitors_credential
+  ON ad_account_monitors(credential_id)
+  WHERE enabled;
+
+
+-- ------------------------------------------------------------
+-- 049_ad_account_funding_display.sql
+-- ------------------------------------------------------------
+
+-- ============================================================
+-- 049_ad_account_funding_display
+--
+-- Correção da leitura de saldo.
+--
+-- A 047 tratava o campo `balance` da Meta como saldo restante. Ele é a
+-- FATURA EM ABERTO: cresce conforme a conta gasta, em vez de diminuir.
+-- Na prática o alerta estava invertido — disparava quando o cliente
+-- tinha gasto pouco e silenciava conforme ele gastava.
+--
+-- O saldo de verdade vem de `funding_source_details.display_string`,
+-- o mesmo texto que o Gerenciador de Anúncios mostra
+-- ("Saldo disponível (R$278,60 BRL)"). Esta migração guarda esse texto
+-- para diagnóstico e corrige os comentários das colunas.
+--
+-- Segura de rodar mais de uma vez.
+-- ============================================================
+
+ALTER TABLE ad_account_monitor_state
+  ADD COLUMN IF NOT EXISTS funding_source_display TEXT;
+
+COMMENT ON COLUMN ad_account_monitor_state.funding_source_display IS
+  'Texto cru da forma de pagamento na Meta. Guardado para conferir de onde saiu available_cents quando o número parecer errado.';
+
+COMMENT ON COLUMN ad_account_monitor_state.balance_cents IS
+  'Campo `balance` da Meta: FATURA EM ABERTO, não saldo. Cresce conforme a conta gasta. O saldo comparado com o limite é available_cents.';
+
+COMMENT ON COLUMN ad_account_monitor_state.available_cents IS
+  'O saldo que a regra comparou com o limite. Vem de funding_source_details.display_string quando a Meta informa, ou de spend_cap - amount_spent como rede. NULL quando não há saldo a comparar.';
+
+-- As leituras antigas foram feitas com a regra invertida, então os
+-- números gravados descrevem a fatura, não o saldo. Zerar o estado do
+-- alerta faz a próxima verificação tratar cada conta como nova: se
+-- houver saldo baixo de verdade, o aviso sai; se não, nada sai. Sem
+-- isso, uma conta marcada como "em alerta" pela regra velha mandaria
+-- um "saldo normalizado" que nunca foi verdade.
+UPDATE ad_account_monitor_state
+   SET low_balance_active = FALSE,
+       low_balance_alert_at = NULL,
+       available_cents = NULL,
+       checked_at = NULL
+ WHERE low_balance_active OR available_cents IS NOT NULL;
+
+
+-- ------------------------------------------------------------
+-- 050_ad_monitor_scheduler.sql
+-- ------------------------------------------------------------
+
+-- ============================================================
+-- 050_ad_monitor_scheduler
+--
+-- Duas mudanças pedidas depois da primeira semana de uso:
+--
+--   1. o próprio CRM passa a verificar as contas de hora em hora, sem
+--      depender de um agendador externo;
+--   2. o aviso de saldo baixo sai UMA VEZ por evento, e não a cada
+--      ciclo — verificar de hora em hora não pode virar uma mensagem
+--      por hora no WhatsApp do cliente.
+--
+-- Segura de rodar mais de uma vez.
+-- ============================================================
+
+-- ============================================================
+-- 1. Trava do agendador
+--
+-- O agendador roda dentro do processo do CRM. Se o Railway subir duas
+-- instâncias, as duas acordam na mesma hora e verificariam as mesmas
+-- contas — e o cliente receberia a mensagem duas vezes.
+--
+-- Uma linha só, com prazo de validade. Quem consegue o UPDATE
+-- condicional roda o ciclo; quem não consegue volta a dormir. O UPDATE
+-- é atômico no Postgres, então não existe empate.
+--
+-- Prazo em vez de "liberar no fim": se a instância que pegou a trava
+-- morrer no meio do ciclo, a trava se solta sozinha em vez de travar o
+-- monitoramento para sempre.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS ad_monitor_scheduler_lease (
+  -- Chave booleana com CHECK: garante fisicamente uma linha só.
+  id BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id),
+  locked_until TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  /** Identifica a instância que segurou a trava por último. Diagnóstico. */
+  holder TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO ad_monitor_scheduler_lease (id, locked_until)
+VALUES (TRUE, NOW())
+ON CONFLICT (id) DO NOTHING;
+
+ALTER TABLE ad_monitor_scheduler_lease ENABLE ROW LEVEL SECURITY;
+
+COMMENT ON TABLE ad_monitor_scheduler_lease IS
+  'Trava de instância única do agendador do monitor de anúncios. Sem policies: só o service role alcança.';
+
+-- ============================================================
+-- 2. Um aviso por evento
+--
+-- `cooldown_hours = 0` significa "avise só na transição": o aviso sai
+-- quando o saldo cruza para baixo do limite e não se repete enquanto
+-- continuar lá. Um novo aviso só acontece depois de o saldo se
+-- recuperar (e cruzar para baixo de novo).
+-- ============================================================
+ALTER TABLE ad_account_monitors
+  ALTER COLUMN cooldown_hours SET DEFAULT 0;
+
+UPDATE ad_account_monitors
+   SET cooldown_hours = 0
+ WHERE cooldown_hours <> 0;
+
+COMMENT ON COLUMN ad_account_monitors.cooldown_hours IS
+  'Intervalo mínimo entre avisos repetidos do mesmo problema. Zero (padrão) avisa só na transição — uma mensagem por evento.';
+
+
+-- ------------------------------------------------------------
+-- 051_message_ad_referral.sql
+-- ------------------------------------------------------------
+
+-- ============================================================
+-- 051_message_ad_referral
+--
+-- Guarda o anúncio que o lead clicou antes de escrever (anúncios de
+-- "Enviar mensagem" no Facebook e no Instagram). O WhatsApp mostra
+-- esse anúncio como um cartão com foto, título e texto em cima da
+-- primeira mensagem; a caixa de entrada do CRM passa a mostrar o mesmo.
+--
+-- Uma coluna JSONB só, preenchida apenas nas mensagens que vieram de
+-- anúncio. As demais continuam NULL. Formato:
+--
+--   {
+--     "source":        "meta_referral" | "uazapi_external_ad_reply" | "uazapi_signal",
+--     "source_type":   "ad" | "post",
+--     "source_id":     "<id do anúncio>",
+--     "source_url":    "https://fb.me/...",
+--     "title":         "<título do anúncio>",
+--     "body":          "<texto do anúncio>",
+--     "media_type":    "image" | "video",
+--     "thumbnail_url": "<cópia no chat-media, ou o link do provedor>",
+--     "media_url":     "<link do provedor>",
+--     "ctwa_clid":     "<id do clique>",
+--     "raw":           { ...cópia higienizada do que o provedor mandou }
+--   }
+--
+-- Segura de rodar mais de uma vez. Pode rodar antes ou depois do
+-- deploy: o código novo só escreve a coluna quando há anúncio, e se a
+-- coluna ainda não existir ele guarda a mensagem sem o cartão.
+-- ============================================================
+
+ALTER TABLE messages
+  ADD COLUMN IF NOT EXISTS ad_referral JSONB;
+
+COMMENT ON COLUMN messages.ad_referral IS
+  'Anúncio de clique para o WhatsApp que originou a mensagem (título, texto, foto, link). NULL quando a mensagem não veio de anúncio. Migração 051.';
+
+-- Para relatórios de "quais anúncios trazem leads": só as linhas que
+-- têm anúncio entram no índice.
+CREATE INDEX IF NOT EXISTS idx_messages_ad_referral_source_id
+  ON messages ((ad_referral->>'source_id'))
+  WHERE ad_referral IS NOT NULL;
+
+
+-- ------------------------------------------------------------
+-- 052_deal_value_required_in_negotiation.sql
+-- ------------------------------------------------------------
+
+-- ============================================================
+-- 052_deal_value_required_in_negotiation
+--
+-- Um negócio só pode entrar (ou ficar) na etapa de negociação com
+-- valor maior que zero. O vendedor precisa informar o preço.
+--
+-- A regra vale pelo NOME da etapa: qualquer etapa cujo nome contenha
+-- "negocia" (Negociação, Em negociação, Negociacao...). Assim ela vale
+-- para todos os funis, inclusive os criados depois, sem configuração.
+--
+-- A tela já pede o valor antes de mover o card; esta trava no banco
+-- garante o mesmo para a API pública e para as automações.
+--
+-- Negócios que JÁ estão em negociação sem valor não são alterados nem
+-- bloqueados: a trava só age quando o negócio entra na etapa ou quando
+-- alguém tenta zerar o valor dele lá dentro.
+--
+-- Segura de rodar mais de uma vez.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION stage_requires_deal_value(p_stage_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM pipeline_stages
+     WHERE id = p_stage_id
+       AND name ILIKE '%negocia%'
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION enforce_deal_value_in_negotiation()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF COALESCE(NEW.value, 0) > 0 THEN
+    RETURN NEW;
+  END IF;
+
+  -- Só quando o negócio entra na etapa ou o valor muda. Editar outro
+  -- campo de um negócio antigo sem valor continua permitido.
+  IF TG_OP = 'UPDATE'
+     AND NEW.stage_id IS NOT DISTINCT FROM OLD.stage_id
+     AND NEW.value IS NOT DISTINCT FROM OLD.value THEN
+    RETURN NEW;
+  END IF;
+
+  IF stage_requires_deal_value(NEW.stage_id) THEN
+    RAISE EXCEPTION 'deal_value_required'
+      USING ERRCODE = 'check_violation',
+            HINT = 'Informe o valor do negócio antes de colocá-lo em negociação.';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_deal_value_in_negotiation ON deals;
+CREATE TRIGGER trg_deal_value_in_negotiation
+  BEFORE INSERT OR UPDATE OF stage_id, value ON deals
+  FOR EACH ROW
+  EXECUTE FUNCTION enforce_deal_value_in_negotiation();

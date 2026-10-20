@@ -1,12 +1,13 @@
 # Banco de dados - arquivos para colar no Supabase
 
-Sao 4 arquivos. Abra o **SQL Editor** do seu projeto Supabase e,
+Sao 5 arquivos. Abra o **SQL Editor** do seu projeto Supabase e,
 **na ordem**, cole o conteudo de cada um e clique em **Run**:
 
-1. `parte-1-de-4.sql`
-2. `parte-2-de-4.sql`
-3. `parte-3-de-4.sql`
-4. `parte-4-de-4.sql`
+1. `parte-1-de-5.sql`
+2. `parte-2-de-5.sql`
+3. `parte-3-de-5.sql`
+4. `parte-4-de-5.sql`
+5. `parte-5-de-5.sql`
 
 Espere cada um dizer **Success** antes de ir para o proximo.
 
