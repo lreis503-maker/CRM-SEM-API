@@ -22,8 +22,16 @@ function currentCompetence(now: Date): string {
 }
 
 export async function POST(_request: Request, { params }: Params) {
+  let id: string;
+  let accountId: string;
+
   try {
-    const [{ id }, { accountId }] = await Promise.all([params, requireRole('admin')]);
+    [{ id }, { accountId }] = await Promise.all([params, requireRole('admin')]);
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+
+  try {
     const db = supabaseAdmin();
     const reminder = await getReminder(db, accountId, id);
     const sent = await sendMonthlyPaymentMessage({
@@ -37,10 +45,10 @@ export async function POST(_request: Request, { params }: Params) {
     if (error instanceof MonthlyPaymentNotFoundError) {
       return NextResponse.json({ error: error.message }, { status: 404 });
     }
-    if (error instanceof Error && error.message) {
-      return NextResponse.json({ error: error.message.slice(0, 200) }, { status: 502 });
-    }
-    return toErrorResponse(error);
+    console.error('[monthly-payments/test] send failed:', error);
+    return NextResponse.json(
+      { error: 'Não foi possível enviar a mensagem de teste' },
+      { status: 502 },
+    );
   }
 }
-

@@ -15,6 +15,7 @@ import type { WhatsAppCapability } from "@/lib/whatsapp/providers/types";
 import {
   Bell,
   Bot,
+  CalendarClock,
   Crown,
   GitBranch,
   LayoutDashboard,
@@ -116,6 +117,12 @@ const navItems: NavItem[] = [
     href: "/ads-monitor",
     labelKey: "adsMonitor",
     icon: Wallet,
+    minRole: "admin",
+  },
+  {
+    href: "/monthly-payments",
+    labelKey: "monthlyPayments",
+    icon: CalendarClock,
     minRole: "admin",
   },
 ];

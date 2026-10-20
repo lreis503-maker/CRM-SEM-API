@@ -168,12 +168,25 @@ describe('monthly payments routes', () => {
     expect(mocks.createReminder).not.toHaveBeenCalled();
   });
 
+  it('preserves authorization errors on a test send', async () => {
+    mocks.requireRole.mockRejectedValue(new Error('forbidden'));
+
+    const response = await POST_TEST(new Request('http://localhost'), {
+      params: Promise.resolve({ id: 'r-1' }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(mocks.getReminder).not.toHaveBeenCalled();
+  });
+
   it('returns a safe error when a test send fails', async () => {
     mocks.sendMonthlyPaymentMessage.mockRejectedValue(new Error('provider refused'));
     const response = await POST_TEST(new Request('http://localhost'), {
       params: Promise.resolve({ id: 'r-1' }),
     });
     expect(response.status).toBe(502);
-    await expect(response.json()).resolves.toEqual({ error: 'provider refused' });
+    await expect(response.json()).resolves.toEqual({
+      error: 'Não foi possível enviar a mensagem de teste',
+    });
   });
 });

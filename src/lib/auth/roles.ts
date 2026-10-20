@@ -80,6 +80,11 @@ export function canEditSettings(role: AccountRole): boolean {
   return hasMinRole(role, "admin");
 }
 
+/** Owner / admin: create, edit, pause and delete monthly payment reminders. */
+export function canManageMonthlyPayments(role: AccountRole): boolean {
+  return hasMinRole(role, "admin");
+}
+
 /**
  * Owner / admin / viewer see every conversation of the account; an
  * agent (seller) sees only the ones assigned to them. Mirrors
