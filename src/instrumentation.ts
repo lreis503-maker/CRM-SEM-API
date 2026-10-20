@@ -23,4 +23,14 @@ export async function register(): Promise<void> {
       '[ads-monitor] verificação automática ligada, uma vez por hora',
     );
   }
+
+  const { startMonthlyPaymentScheduler } = await import(
+    '@/lib/monthly-payments/scheduler'
+  );
+
+  if (startMonthlyPaymentScheduler()) {
+    console.info(
+      '[monthly-payments] verificação automática ligada, uma vez por minuto',
+    );
+  }
 }
