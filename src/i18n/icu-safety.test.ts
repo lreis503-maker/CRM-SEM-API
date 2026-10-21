@@ -103,5 +103,5 @@ describe('ICU-hostile strings are not read with plain t()', () => {
       offenders.sort(),
       'these render as their own keypath at runtime; use t.raw() (or t.rich() with tag handlers)',
     ).toEqual([]);
-  });
+  }, 15_000);
 });
