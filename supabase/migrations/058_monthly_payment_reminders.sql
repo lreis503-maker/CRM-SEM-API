@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS monthly_payment_reminders (
   enabled BOOLEAN NOT NULL DEFAULT TRUE,
   starts_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   deleted_at TIMESTAMPTZ,
-  created_by UUID NOT NULL REFERENCES profiles(id) ON DELETE RESTRICT,
+  created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT monthly_payment_recipient_shape CHECK (
@@ -195,4 +195,3 @@ REVOKE ALL ON FUNCTION public.claim_due_monthly_payment_deliveries(TIMESTAMPTZ, 
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.claim_due_monthly_payment_deliveries(TIMESTAMPTZ, INTEGER, TEXT)
   TO service_role;
-

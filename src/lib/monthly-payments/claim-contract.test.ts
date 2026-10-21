@@ -18,6 +18,8 @@ describe('monthly payment reminder database contract', () => {
     expect(sql).toMatch(/deleted_at\s+TIMESTAMPTZ/i);
     expect(sql).toMatch(/ENABLE ROW LEVEL SECURITY/i);
     expect(sql).toMatch(/is_account_member\(account_id,\s*'admin'\)/i);
+    expect(sql).toMatch(/created_by\s+UUID\s+REFERENCES\s+auth\.users\(id\)\s+ON DELETE SET NULL/i);
+    expect(sql).not.toMatch(/created_by\s+UUID[\s\S]{0,80}REFERENCES\s+profiles\(id\)/i);
   });
 
   it('claims due work atomically and recovers abandoned claims', () => {

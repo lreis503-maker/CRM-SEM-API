@@ -94,7 +94,13 @@
     "unknownCompetence": "Unknown competence",
     "sent": "Sent",
     "failed": "Failed",
-    "sending": "Sending"
+    "sending": "Sending",
+    "active": "Active",
+    "inactive": "Paused",
+    "nextSend": "Next send: {date}",
+    "noNextSend": "No scheduled send while paused",
+    "lastSent": "Last send completed",
+    "noRecipient": "No recipient"
   },
   "Header": {
     "dashboard": "Dashboard",

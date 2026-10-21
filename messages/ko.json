@@ -94,7 +94,13 @@
     "unknownCompetence": "기간 정보 없음",
     "sent": "전송됨",
     "failed": "실패",
-    "sending": "전송 중"
+    "sending": "전송 중",
+    "active": "활성",
+    "inactive": "일시 중지",
+    "nextSend": "다음 전송: {date}",
+    "noNextSend": "일시 중지 중에는 전송되지 않습니다",
+    "lastSent": "최근 전송 완료",
+    "noRecipient": "수신자 없음"
   },
   "Header": {
     "dashboard": "대시보드",

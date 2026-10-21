@@ -112,11 +112,20 @@ function formFromReminder(reminder: ReminderView): FormState {
 export function MonthlyPaymentSummary({
   reminder,
   contactName,
+  labels,
 }: {
   reminder: ReminderView;
   contactName: string | null;
+  labels: {
+    active: string;
+    paused: string;
+    nextSend: string;
+    noNextSend: string;
+    lastSent: string;
+    noRecipient: string;
+  };
 }) {
-  const name = contactName || reminder.recipient_name || reminder.recipient_phone || 'Sem destinatário';
+  const name = contactName || reminder.recipient_name || reminder.recipient_phone || labels.noRecipient;
   const next = reminder.next_scheduled_at
     ? new Date(reminder.next_scheduled_at).toLocaleString('pt-BR', {
         timeZone: 'America/Sao_Paulo',
@@ -129,7 +138,7 @@ export function MonthlyPaymentSummary({
       <div className="flex flex-wrap items-center gap-2">
         <p className="truncate font-medium">{name}</p>
         <Badge variant={reminder.enabled ? 'default' : 'secondary'}>
-          {reminder.enabled ? 'Ativa' : 'Pausada'}
+          {reminder.enabled ? labels.active : labels.paused}
         </Badge>
       </div>
       <p className="mt-1 text-lg font-semibold tabular-nums">
@@ -137,12 +146,12 @@ export function MonthlyPaymentSummary({
       </p>
       <p className="text-muted-foreground mt-1 flex items-center gap-1.5 text-sm">
         <CalendarDays className="size-4" aria-hidden="true" />
-        {next ? `Próximo envio: ${next}` : 'Sem envio enquanto estiver pausada'}
+        {next ? labels.nextSend.replace('{date}', next) : labels.noNextSend}
       </p>
       {reminder.last_delivery?.status === 'failed' ? (
         <p className="text-destructive mt-2 text-sm">{reminder.last_delivery.last_error}</p>
       ) : reminder.last_delivery?.status === 'sent' ? (
-        <p className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">Último envio concluído</p>
+        <p className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">{labels.lastSent}</p>
       ) : null}
     </div>
   );
@@ -330,6 +339,14 @@ export function MonthlyPaymentsClient() {
                   <MonthlyPaymentSummary
                     reminder={reminder}
                     contactName={reminder.contact_id ? contactNames.get(reminder.contact_id) ?? null : null}
+                    labels={{
+                      active: t('active'),
+                      paused: t('inactive'),
+                      nextSend: t.raw('nextSend'),
+                      noNextSend: t('noNextSend'),
+                      lastSent: t('lastSent'),
+                      noRecipient: t('noRecipient'),
+                    }}
                   />
                   <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
                     <Button variant="outline" size="sm" disabled={busyId === reminder.id} onClick={() => void testSend(reminder)}>
@@ -439,4 +456,3 @@ function DeliveryHistory({ deliveries }: { deliveries: DeliveryView[] }) {
     </ul>
   );
 }
-

@@ -94,7 +94,13 @@
     "unknownCompetence": "Período no informado",
     "sent": "Enviado",
     "failed": "Falló",
-    "sending": "Enviando"
+    "sending": "Enviando",
+    "active": "Activa",
+    "inactive": "Pausada",
+    "nextSend": "Próximo envío: {date}",
+    "noNextSend": "Sin envío programado mientras esté pausada",
+    "lastSent": "Último envío completado",
+    "noRecipient": "Sin destinatario"
   },
   "Header": {
     "dashboard": "Panel",

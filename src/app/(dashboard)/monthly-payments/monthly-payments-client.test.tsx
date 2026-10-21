@@ -70,6 +70,14 @@ describe('MonthlyPaymentSummary', () => {
           last_delivery: { status: 'failed', last_error: 'WhatsApp desconectado' },
         }}
         contactName={null}
+        labels={{
+          active: 'Active',
+          paused: 'Paused',
+          nextSend: 'Next send: {date}',
+          noNextSend: 'No scheduled send while paused',
+          lastSent: 'Last send completed',
+          noRecipient: 'No recipient',
+        }}
       />,
     );
 
@@ -77,6 +85,7 @@ describe('MonthlyPaymentSummary', () => {
     expect(html).toContain('R$ 500,00');
     expect(html).toContain('10/11/2026');
     expect(html).toContain('WhatsApp desconectado');
+    expect(html).toContain('Active');
+    expect(html).toContain('Next send:');
   });
 });
-
